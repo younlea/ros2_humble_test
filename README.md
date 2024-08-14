@@ -4,7 +4,7 @@ https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Custom-ROS2-I
 
 message를 따로 만들고 메세지를 쓸 package들을 만들어서 써야함.
 한번에 넣으니까 안된다 .ㅡ.ㅡ;
-
+```
 1. message관련 package 만든다.
    ros2 create xxx
    mkdir msg
@@ -39,4 +39,4 @@ message를 따로 만들고 메세지를 쓸 package들을 만들어서 써야�
     'console_scripts': [    
          'ros2_layer_b = process_b.ros2_layer_b:main',   
     ],   
-   
+```
