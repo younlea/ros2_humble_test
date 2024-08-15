@@ -6,9 +6,10 @@ message를 따로 만들고 메세지를 쓸 package들을 만들어서 써야�
 한번에 넣으니까 안된다 .ㅡ.ㅡ;
 ```
 1. message관련 package 만든다.
-   ros2 create xxx
+   ros2 pkg create message_test
+   rm -r include src
    mkdir msg
-   touch msg/nu.msg
+   touch msg/DataAB.msg
 
    CMakeList.txt 아래 내용 추가
    rosidl_generate_interfaces(${PROJECT_NAME}
