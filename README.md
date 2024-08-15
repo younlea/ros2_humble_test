@@ -11,14 +11,17 @@ message를 따로 만들고 메세지를 쓸 package들을 만들어서 써야�
    mkdir msg
    touch msg/DataAB.msg
 
-   CMakeList.txt 아래 내용 추가
-   rosidl_generate_interfaces(${PROJECT_NAME}
+  CMakeList.txt 아래 내용 추가
+  find_package(rosidl_default_generators REQUIRED)
+
+  rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DataAB.msg"
   "msg/DataBA.msg"
   "msg/DataBC.msg"
   "msg/DataCB.msg"
   )
-   package.xml 아래 내용 추가
+
+  package.xml 아래 내용 추가
    
   <buildtool_depend>rosidl_default_generators</buildtool_depend>
   <exec_depend>rosidl_default_runtime</exec_depend>
