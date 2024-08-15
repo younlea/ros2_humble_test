@@ -4,33 +4,34 @@ Python으로 작성된 ROS2 Humble에서 A, B, C 프로세스 간의 통신을 �
 먼저 각 프로세스에 대한 ROS2 패키지를 생성합니다:
 
 ```bash
+ros2 pkg create message_test
 ros2 pkg create --build-type ament_python process_a
 ros2 pkg create --build-type ament_python process_b
 ros2 pkg create --build-type ament_python process_c
 ```
 
-각 패키지 디렉토리에 `msg` 디렉토리를 생성하고, 통신할 메시지 타입을 정의합니다.
+message_test 디렉토리에 `msg` 디렉토리를 생성하고, 통신할 메시지 타입을 정의합니다.
 
 ### 2. 메시지 정의
 
-`process_a/msg/DataAB.msg`:
+`message_test/msg/DataAB.msg`:
 ```plaintext
 float32 value1
 int32 value2
 ```
 
-`process_b/msg/DataBA.msg`:
+`message_test/msg/DataBA.msg`:
 ```plaintext
 string text
 bool flag
 ```
 
-`process_b/msg/DataBC.msg`:
+`message_test/msg/DataBC.msg`:
 ```plaintext
 float32 value3
 ```
 
-`process_c/msg/DataCB.msg`:
+`message_test/msg/DataCB.msg`:
 ```plaintext
 int64 value4
 ```
@@ -38,7 +39,7 @@ int64 value4
 ### 3. CMakeLists.txt 및 package.xml 설정
 패키지의 `CMakeLists.txt`와 `package.xml` 파일을 업데이트하여 메시지를 빌드하도록 설정합니다.
 
-**process_a/CMakeLists.txt**:
+**message_test/CMakeLists.txt**:
 ```cmake
 find_package(rosidl_default_generators REQUIRED)
 
@@ -47,7 +48,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 )
 ```
 
-**process_a/package.xml**:
+**message_test/package.xml**:
 ```xml
 <build_depend>rosidl_default_generators</build_depend>
 <exec_depend>rosidl_default_runtime</exec_depend>
