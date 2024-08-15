@@ -34,10 +34,10 @@ message를 따로 만들고 메세지를 쓸 package들을 만들어서 써야�
     ros2 create pkg amend_python process_xx    
    
     package.xml 에 아래 내용(message관련 dependent추가)    
-     <depend>interface_msg</depend>   
+     <depend>message_test</depend>   
 
    python code에 아래 내용 추가(interface_msg/msg/DataBA 파일이 있다.)    
-   from interface_msg.msg import DataBA, DataBC    
+   from message_test.msg import DataBA, DataBC    
      
     setup.py에 아래 내용 추가.    
     'console_scripts': [    
