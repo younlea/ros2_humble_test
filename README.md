@@ -92,13 +92,17 @@ find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DataAB.msg"
+  "msg/DataBA.msg"
+  "msg/DataBC.msg"
+  "msg/DataCB.msg"
 )
 ```
 
 **message_test/package.xml**:
 ```xml
-<build_depend>rosidl_default_generators</build_depend>
-<exec_depend>rosidl_default_runtime</exec_depend>
+  <buildtool_depend>rosidl_default_generators</buildtool_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+  <member_of_group>rosidl_interface_packages</member_of_group>
 ```
 
 각 패키지마다 이와 유사하게 설정합니다.
@@ -132,7 +136,7 @@ class IntermediateLayerA:
 ```python
 import rclpy
 from rclpy.node import Node
-from process_a.msg import DataAB
+from message_test.msg import DataAB
 from process_a.intermediate_layer_a import IntermediateLayerA
 
 class ROS2LayerA(Node):
@@ -189,7 +193,7 @@ class IntermediateLayerB:
 ```python
 import rclpy
 from rclpy.node import Node
-from process_b.msg import DataBA, DataBC
+from message_test.msg import DataBA, DataBC
 from process_b.intermediate_layer_b import IntermediateLayerB
 
 class ROS2LayerB(Node):
@@ -259,7 +263,7 @@ class IntermediateLayerC:
 ```python
 import rclpy
 from rclpy.node import Node
-from process_c.msg import DataBC, DataCB
+from message_test.msg import DataBC, DataCB
 from process_c.intermediate_layer_c import IntermediateLayerC
 
 class ROS2LayerC(Node):
