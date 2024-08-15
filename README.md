@@ -167,6 +167,7 @@ if __name__ == '__main__':
     main()
 ```
 #### 추가 수정
+```
     package.xml 에 아래 내용(message관련 dependent추가)    
      <depend>message_test</depend>   
 
@@ -176,8 +177,9 @@ if __name__ == '__main__':
     setup.py에 아래 내용 추가.    
     'console_scripts': [    
          'ros2_layer_a = process_a.ros2_layer_a:main',   
-    ], 
-    
+    ],
+```
+ 
 #### B 프로세스
 
 **process_b/process_b/process_layer_b.py**:
