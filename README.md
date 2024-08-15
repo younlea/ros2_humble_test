@@ -1,6 +1,9 @@
 # ros2_humble_test
+아래 같은 구조를 만들고 싶어서 만들어 봄. 
 
-https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Custom-ROS2-Interfaces.html
+<img width="691" alt="image" src="https://github.com/user-attachments/assets/c68e5a14-6bed-4d4d-a629-5b8b1d23d599">
+
+[메세지 참고](https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Custom-ROS2-Interfaces.html) 
 
 message를 따로 만들고 메세지를 쓸 package들을 만들어서 써야함.
 한번에 넣으니까 안된다 .ㅡ.ㅡ;
