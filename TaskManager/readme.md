@@ -1,5 +1,5 @@
 # ros2_humble_test
-아래 같은 구조를 만들고 싶어서 만들어 봄. 
+아래 같은 구조를 만들고 싶어서 만들어 봄. (topic 만을 이용해서 통신 샘플을 만듬)  
 
 <img width="691" alt="image" src="https://github.com/user-attachments/assets/c68e5a14-6bed-4d4d-a629-5b8b1d23d599">
 
