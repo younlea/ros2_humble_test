@@ -1,0 +1,30 @@
+{
+  "package_name": "message",
+  "output_dir": "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_generator_c/message",
+  "template_dir": "/home/younlea/ros2_humble/install/rosidl_generator_c/share/rosidl_generator_c/cmake/../resource",
+  "idl_tuples": [
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message:msg/DataAB.idl",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message:msg/DataBA.idl",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message:srv/DataAB.idl",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message:srv/DataBA.idl"
+  ],
+  "target_dependencies": [
+    "/home/younlea/ros2_humble/install/rosidl_generator_c/share/rosidl_generator_c/cmake/../../../lib/rosidl_generator_c/rosidl_generator_c",
+    "/home/younlea/ros2_humble/install/rosidl_generator_c/share/rosidl_generator_c/cmake/../../../local/lib/python3.10/dist-packages/rosidl_generator_c/__init__.py",
+    "/home/younlea/ros2_humble/install/rosidl_generator_c/share/rosidl_generator_c/cmake/../resource/action__type_support.h.em",
+    "/home/younlea/ros2_humble/install/rosidl_generator_c/share/rosidl_generator_c/cmake/../resource/idl.h.em",
+    "/home/younlea/ros2_humble/install/rosidl_generator_c/share/rosidl_generator_c/cmake/../resource/idl__functions.c.em",
+    "/home/younlea/ros2_humble/install/rosidl_generator_c/share/rosidl_generator_c/cmake/../resource/idl__functions.h.em",
+    "/home/younlea/ros2_humble/install/rosidl_generator_c/share/rosidl_generator_c/cmake/../resource/idl__struct.h.em",
+    "/home/younlea/ros2_humble/install/rosidl_generator_c/share/rosidl_generator_c/cmake/../resource/idl__type_support.h.em",
+    "/home/younlea/ros2_humble/install/rosidl_generator_c/share/rosidl_generator_c/cmake/../resource/msg__functions.c.em",
+    "/home/younlea/ros2_humble/install/rosidl_generator_c/share/rosidl_generator_c/cmake/../resource/msg__functions.h.em",
+    "/home/younlea/ros2_humble/install/rosidl_generator_c/share/rosidl_generator_c/cmake/../resource/msg__struct.h.em",
+    "/home/younlea/ros2_humble/install/rosidl_generator_c/share/rosidl_generator_c/cmake/../resource/msg__type_support.h.em",
+    "/home/younlea/ros2_humble/install/rosidl_generator_c/share/rosidl_generator_c/cmake/../resource/srv__type_support.h.em",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message/msg/DataAB.idl",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message/msg/DataBA.idl",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message/srv/DataAB.idl",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message/srv/DataBA.idl"
+  ]
+}

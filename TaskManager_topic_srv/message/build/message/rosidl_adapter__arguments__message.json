@@ -1,0 +1,9 @@
+{
+  "package_name": "message",
+  "non_idl_tuples": [
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message:msg/DataAB.msg",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message:msg/DataBA.msg",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message:srv/DataAB.srv",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message:srv/DataBA.srv"
+  ]
+}

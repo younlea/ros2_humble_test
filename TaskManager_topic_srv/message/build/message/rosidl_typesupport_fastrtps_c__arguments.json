@@ -1,0 +1,25 @@
+{
+  "package_name": "message",
+  "output_dir": "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_typesupport_fastrtps_c/message",
+  "template_dir": "/home/younlea/ros2_humble/install/rosidl_typesupport_fastrtps_c/share/rosidl_typesupport_fastrtps_c/resource",
+  "idl_tuples": [
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message:msg/DataAB.idl",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message:msg/DataBA.idl",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message:srv/DataAB.idl",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message:srv/DataBA.idl"
+  ],
+  "target_dependencies": [
+    "/home/younlea/ros2_humble/install/rosidl_typesupport_fastrtps_c/lib/rosidl_typesupport_fastrtps_c/rosidl_typesupport_fastrtps_c",
+    "/home/younlea/ros2_humble/install/rosidl_typesupport_fastrtps_c/local/lib/python3.10/dist-packages/rosidl_typesupport_fastrtps_c/__init__.py",
+    "/home/younlea/ros2_humble/install/rosidl_typesupport_fastrtps_c/share/rosidl_typesupport_fastrtps_c/resource/idl__rosidl_typesupport_fastrtps_c.h.em",
+    "/home/younlea/ros2_humble/install/rosidl_typesupport_fastrtps_c/share/rosidl_typesupport_fastrtps_c/resource/idl__type_support_c.cpp.em",
+    "/home/younlea/ros2_humble/install/rosidl_typesupport_fastrtps_c/share/rosidl_typesupport_fastrtps_c/resource/msg__rosidl_typesupport_fastrtps_c.h.em",
+    "/home/younlea/ros2_humble/install/rosidl_typesupport_fastrtps_c/share/rosidl_typesupport_fastrtps_c/resource/msg__type_support_c.cpp.em",
+    "/home/younlea/ros2_humble/install/rosidl_typesupport_fastrtps_c/share/rosidl_typesupport_fastrtps_c/resource/srv__rosidl_typesupport_fastrtps_c.h.em",
+    "/home/younlea/ros2_humble/install/rosidl_typesupport_fastrtps_c/share/rosidl_typesupport_fastrtps_c/resource/srv__type_support_c.cpp.em",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message/msg/DataAB.idl",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message/msg/DataBA.idl",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message/srv/DataAB.idl",
+    "/home/younlea/source/ros_test/ros2_humble_test/TaskManager_topic_srv/message/build/message/rosidl_adapter/message/srv/DataBA.idl"
+  ]
+}

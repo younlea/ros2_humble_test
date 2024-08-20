@@ -1,0 +1,15 @@
+// generated from rosidl_adapter/resource/srv.idl.em
+// with input from message/srv/DataBA.srv
+// generated code does not contain a copyright notice
+
+
+module message {
+  module srv {
+    struct DataBA_Request {
+      int32 data_ba;
+    };
+    struct DataBA_Response {
+      int32 response_data_ba;
+    };
+  };
+};
