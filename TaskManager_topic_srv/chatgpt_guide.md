@@ -128,6 +128,9 @@ from rclpy.node import Node
 from std_msgs.msg import Int32
 from message.srv import SrvBA
 
+from nodeA.intermediate_layer import NodeAIntermediate
+from nodeA.process_layer import NodeAProcess
+
 class NodeARos2(Node):
     def __init__(self):
         super().__init__('node_a')
@@ -215,6 +218,9 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Int32
 from message.srv import SrvBA
+
+from nodeB.intermediate_layer import NodeBIntermediate
+from nodeB.process_layer import NodeBProcess
 
 class NodeBRos2(Node):
     def __init__(self):

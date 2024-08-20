@@ -68,3 +68,11 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 # 3. Add A, B source code
 ```
 ```
+
+# 4. build & run
+```
+colcon build
+source install/setup.bash
+ros2 run nodeA node_a
+ros2 run nodeb node_b
+```

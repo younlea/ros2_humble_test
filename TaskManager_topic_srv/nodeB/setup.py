@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'node_b = nodeB.ros2_layer:main'
         ],
     },
 )
