@@ -65,7 +65,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   <exec_depend>rosidl_default_runtime</exec_depend>
   <member_of_group>rosidl_interface_packages</member_of_group>
 ```
-
+```
 이제 nodeA와 nodeB쪽 코드를 작성해야 하는데. 관련해서 아래와 같은 기능을 하는 sample code 및 패키지에 수정해야 하는것들을 알려줘. 
 
 nodeA는 1초 주기로 DataAB에 1~10까지의 랜덤한 수를 퍼블리쉬 하고 nodeB는 dataAB를 서브스크라이브해서 읽어오는 데이터중 2의 배수만 계속 더하고 10의 배수가 될 때 마다 nodeA로 serBA를 사용해서 10의 배수가 된걸 nodeA에 알려주면  nodeA는 10초간 topic 퍼블리쉬를 멈췄다가 다시 보내는 코드를 파이썬으로 작성해줘. 
@@ -76,8 +76,8 @@ nodeA는 1초 주기로 DataAB에 1~10까지의 랜덤한 수를 퍼블리쉬 �
 process_layer.py
 intermediate_layer.py
 ros2_layer.py
-
 ```
+
 
 # Answer
 이제 ROS 2 Humble을 이용한 `nodeA`와 `nodeB`의 파이썬 샘플 코드를 작성하겠습니다. 요구 사항에 따라 코드를 3개의 레이어로 나누어 구성할 것입니다. 각 노드는 메시지와 서비스를 주고받으며 동작하게 됩니다.
