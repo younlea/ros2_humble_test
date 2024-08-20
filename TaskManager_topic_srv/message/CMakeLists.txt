@@ -16,8 +16,8 @@ find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DataAB.msg"
   "msg/DataBA.msg"
-  "srv/DataAB.srv"
-  "srv/DataBA.srv"
+  "srv/SrvAB.srv"
+  "srv/SrvBA.srv"
 )
 
 ament_package()

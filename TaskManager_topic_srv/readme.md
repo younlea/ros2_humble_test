@@ -15,9 +15,34 @@ in message
 │   └── DataBA.msg
 ├── package.xml
 └── srv
-    ├── DataAB.srv
-    └── DataBA.srv
+    ├── srvDataAB.srv
+    └── srvDataBA.srv
 ```
+message 
+`message/msg/DataAB.msg`:
+```plaintext
+int32 data_ab
+```
+
+`message/msg/DataBA.msg`:
+```plaintext
+int32 data_ba
+```
+
+`message/srv/SrvAB.msg`:
+```plaintext
+int32 data_ab
+---
+int32 response_data_ab
+```
+
+`message/srv/SrvBA.msg`:
+```plaintext
+int32 data_ba
+---
+int32 response_data_ba
+```
+
 패키지의 `CMakeLists.txt`와 `package.xml` 파일을 업데이트하여 메시지를 빌드하도록 설정합니다.
 
 **message/CMakeLists.txt**:
@@ -27,8 +52,8 @@ find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DataAB.msg"
   "msg/DataBA.msg"
-  "srv/DataAB.srv"
-  "srv/DataBA.srv"
+  "srv/SrvAB.srv"
+  "srv/SrvBA.srv"
 )
 ```
 
