@@ -3,6 +3,7 @@ from rclpy.node import Node
 from std_msgs.msg import Int32
 from message.srv import SrvBA
 
+# Import the necessary classes
 from nodeA.intermediate_layer import NodeAIntermediate
 from nodeA.process_layer import NodeAProcess
 
@@ -10,9 +11,9 @@ class NodeARos2(Node):
     def __init__(self):
         super().__init__('node_a')
         self.publisher_ = self.create_publisher(Int32, 'data_ab', 10)
-        self.srv_client = self.create_client(SrvBA, 'srv_ba')
         self.timer = self.create_timer(1.0, self.publish_data_ab)
         self.intermediate_layer = NodeAIntermediate(NodeAProcess())
+        self.srv_server = self.create_service(SrvBA, 'srv_ba', self.handle_srv_ba_request)
 
     def publish_data_ab(self):
         if self.intermediate_layer.process_layer.publish_enabled:
@@ -28,14 +29,14 @@ class NodeARos2(Node):
         self.intermediate_layer.process_layer.publish_enabled = True
         print("Resumed publishing.")
 
-    def call_srv_ba(self, data):
-        request = SrvBA.Request()
-        request.data_ba = data
-        self.srv_client.call_async(request).add_done_callback(self.handle_srv_ba_response)
-
-    def handle_srv_ba_response(self, future):
-        response = future.result()
-        self.intermediate_layer.handle_service_response(response.response_data_ba)
+    def handle_srv_ba_request(self, request, response):
+        print(f"Received service request: {request.data_ba}")
+        if self.intermediate_layer.handle_service_response(request.data_ba):
+            response.response_data_ba = 10
+            print("Pausing publishing for 10 seconds.")
+        else:
+            response.response_data_ba = -1
+        return response
 
 def main(args=None):
     rclpy.init(args=args)
