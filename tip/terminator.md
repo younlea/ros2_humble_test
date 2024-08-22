@@ -5,7 +5,9 @@ node들을 실행하는건 ros2 run node1 node1 이런식으로 하면 되
 ```
 
 `terminator`를 사용하여 하나의 창에서 7개의 터미널을 분할하고, 각 창에서 ROS 2 노드를 실행하는 스크립트를 작성할 수 있습니다. 아래는 그 스크립트입니다:
-
+```
+sudo apt install xdotool
+```
 ```bash
 #!/bin/bash
 
