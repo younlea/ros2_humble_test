@@ -26,6 +26,10 @@ xdotool key ctrl+shift+o  # 수평 분할
 xdotool key ctrl+shift+e  # 수직 분할
 xdotool key ctrl+shift+e  # 수직 분할
 
+xdotool key ctrl+Up
+xdotool key ctrl+Down
+xdotool key ctrl+Left
+xdotool key ctrl+Right
 # 터미널 포커스를 순차적으로 이동하면서 각 노드를 실행
 xdotool key alt+1
 xdotool type "ros2 run node1 node1"
