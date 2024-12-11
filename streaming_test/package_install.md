@@ -1,5 +1,5 @@
 Ubuntu 환경에서 OpenCV와 GStreamer를 설치하려면 시스템 패키지 관리자를 사용하여 필요한 라이브러리를 설치한 후 Python 환경에 OpenCV를 구성해야 합니다. 아래는 문제 해결 및 설치 방법입니다.
-
+```
 1. GStreamer 설치
 
 GStreamer는 OpenCV의 GStreamer 백엔드와 함께 설치해야 합니다.
@@ -100,5 +100,5 @@ else:
         cv2.waitKey(0)
     cap.release()
 cv2.destroyAllWindows()
-
+```
 이제 RTSP 스트리밍 프로그램도 정상적으로 실행될 것입니다. 문제가 지속된다면 알려주세요!
