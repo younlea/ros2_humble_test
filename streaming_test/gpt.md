@@ -4,6 +4,7 @@
 
 이 프로그램은 이미지 두 장을 번갈아 가며 30fps로 출력하고, RTSP 프로토콜을 통해 송출합니다.
 
+```python
 import cv2
 import numpy as np
 import time
@@ -49,9 +50,11 @@ except KeyboardInterrupt:
 finally:
     out.release()
 
+```
 프로그램 2: RTSP 스트림 뷰어
 
-이 프로그램은 첫 번째 프로그램에서 송출한 RTSP 스트림을 받아 화면에 표시합니다.
+```python
+#이 프로그램은 첫 번째 프로그램에서 송출한 RTSP 스트림을 받아 화면에 표시합니다.
 
 import cv2
 
@@ -88,6 +91,7 @@ finally:
     cap.release()
     cv2.destroyAllWindows()
 
+```
 사용 방법
 	1.	필요한 라이브러리 설치:
 
