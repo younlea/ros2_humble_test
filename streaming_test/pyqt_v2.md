@@ -10,6 +10,7 @@
 
 수정된 Python 코드
 
+```python
 import sys
 import cv2
 import numpy as np
@@ -162,6 +163,7 @@ if __name__ == "__main__":
     viewer = VideoViewer(rtsp_url)
     viewer.show()
     sys.exit(app.exec_())
+```
 
 주요 추가 및 변경 사항
 	1.	캡처 버튼:
@@ -176,14 +178,14 @@ if __name__ == "__main__":
 
 실행 방법
 	1.	필요 라이브러리 설치:
-
+ ```
 pip install opencv-python-headless PyQt5
-
+```
 
 	2.	코드 실행:
-
+```
 python rtsp_viewer_with_poi.py
-
+```
 
 
 사용법
