@@ -11,7 +11,7 @@
 	•	POI 박스가 설정되면 해당 박스를 스트리밍 화면에 항상 표시.
 
 수정된 코드
-
+```python
 import sys
 import cv2
 import numpy as np
@@ -176,6 +176,7 @@ if __name__ == "__main__":
     viewer = VideoViewer(rtsp_url)
     viewer.show()
     sys.exit(app.exec_())
+```
 
 주요 변경 사항
 	1.	FHD 스트리밍 화면: self.image_label 크기를 1920x1080으로 설정하고 프레임을 cv2.resize로 크기 조정.
