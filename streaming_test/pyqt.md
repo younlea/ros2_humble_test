@@ -1,7 +1,7 @@
 Ubuntu에서 GUI를 만들어 RTSP 스트리밍 영상을 표시하고 해당 영상을 AI 처리로 연결하는 프로그램을 작성하려면, OpenCV와 PyQt (또는 C++에서 Qt)를 사용하는 것이 일반적입니다. 아래는 Python을 사용한 예제로, OpenCV로 RTSP 스트리밍을 읽고 PyQt5로 GUI에 영상을 표시하는 코드입니다. AI 처리를 위한 간단한 프레임 분석 기능도 포함되어 있습니다.
 
 Python 코드 예제
-
+```python
 import sys
 import cv2
 import numpy as np
@@ -59,6 +59,7 @@ if __name__ == "__main__":
     viewer = VideoViewer("rtsp://192.168.0.4")  # RTSP 주소 입력
     viewer.show()
     sys.exit(app.exec_())
+```
 
 주요 설명
 	1.	RTSP 스트림 읽기:
@@ -73,14 +74,14 @@ if __name__ == "__main__":
 
 실행 방법
 	1.	Python 라이브러리 설치:
-
+```
 pip install opencv-python-headless PyQt5
-
+```
 
 	2.	프로그램 실행:
-
+```
 python rtsp_viewer.py
-
+```
 확장 가능성
 	1.	AI 모델 통합:
 	•	PyTorch 또는 TensorFlow 모델을 로드하여 simple_ai_processing 함수에 적용하면 AI 처리를 쉽게 통합할 수 있습니다.
