@@ -22,6 +22,7 @@
 
 아래는 이 과정을 구현한 Python 코드입니다.
 
+```python
 import cv2
 import numpy as np
 
@@ -110,7 +111,7 @@ def main():
 
 if __name__ == "__main__":
     main()
-
+```
 주요 구현 내용
 	1.	POI 영역만 처리:
 	•	프레임에서 self.poi_rect로 지정된 영역만 잘라내어 처리 속도를 높였습니다.
