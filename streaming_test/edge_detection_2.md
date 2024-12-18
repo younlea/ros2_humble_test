@@ -110,17 +110,17 @@ while True:
 cap.release()
 cv2.destroyAllWindows()
 ```
-2. OpenCV DNN 모듈로 객체 탐지
+2. OpenCV DNN 모듈로 객체 탐지    
 
-OpenCV의 DNN 모듈은 YOLO와 유사하지만 더 일반적인 DNN 모델을 지원합니다. 아래는 SSD (Single Shot Detector) 모델을 사용하는 예제입니다.
+OpenCV의 DNN 모듈은 YOLO와 유사하지만 더 일반적인 DNN 모델을 지원합니다. 아래는 SSD (Single Shot Detector) 모델을 사용하는 예제입니다.    
 
-단계
-	1.	모델 다운로드:
-	•	SSD 모델에서 MobileNet-SSD 사전 학습된 모델을 다운로드합니다.
-	•	파일:
-	•	MobileNetSSD_deploy.caffemodel (가중치 파일)
-	•	MobileNetSSD_deploy.prototxt (구조 파일)
-	2.	코드 구현:
+단계    
+	1.	모델 다운로드:    
+	•	SSD 모델에서 MobileNet-SSD 사전 학습된 모델을 다운로드합니다.    
+	•	파일:    
+	•	MobileNetSSD_deploy.caffemodel (가중치 파일)    
+	•	MobileNetSSD_deploy.prototxt (구조 파일)    
+	2.	코드 구현:    
 ```python
 import cv2
 import numpy as np
