@@ -1,7 +1,7 @@
 아래는 QVBoxLayout과 addWidget, addLayout을 사용해 동일한 레이아웃을 구성한 코드입니다. PyQt5 또는 PySide2 환경에서 동작합니다.
 
 코드: init_ui 함수 수정 (PyQt5/PySide2)
-
+```python
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QLabel, QPushButton
 )
@@ -55,7 +55,7 @@ def init_ui(self):
     capture_poi_layout.addWidget(self.poi_label)
 
     button_layout.addLayout(capture_poi_layout)
-
+```
 설명
 	1.	레이아웃 구성:
 	•	QVBoxLayout: 전체 레이아웃을 세로로 정렬.
