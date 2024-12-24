@@ -1,7 +1,7 @@
 아래는 OpenCV를 사용하여 POI 영역 내에서 특정 크기의 원을 감지하고, 원의 중앙점을 반환하는 함수입니다. 사용자가 찾고자 하는 원의 크기를 최소 반지름(min_radius)과 최대 반지름(max_radius)으로 지정할 수 있습니다.
 
 코드: 원 감지 및 중앙점 반환
-
+```python
 import cv2
 import numpy as np
 
@@ -60,7 +60,7 @@ def find_circles_in_poi(frame, poi_rect, min_radius, max_radius):
     processed_frame[y:y + h, x:x + w] = poi_frame
 
     return circles, processed_frame
-
+```
 함수 설명
 	1.	입력:
 	•	frame: 전체 영상 프레임 (numpy 배열).
@@ -76,7 +76,7 @@ def find_circles_in_poi(frame, poi_rect, min_radius, max_radius):
 	•	processed_frame: 감지 결과를 표시한 전체 프레임.
 
 사용 예제
-
+```python
 frame = cv2.imread("example_frame.jpg")
 poi_rect = (100, 100, 300, 300)  # POI 영역 (x, y, w, h)
 
@@ -91,7 +91,7 @@ print("Detected Circles:", circles)  # [(cx1, cy1), (cx2, cy2), ...]
 cv2.imshow("Processed Frame", processed_frame)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
-
+```
 주요 포인트
 	1.	cv2.HoughCircles:
 	•	원을 감지하기 위한 OpenCV 함수.
