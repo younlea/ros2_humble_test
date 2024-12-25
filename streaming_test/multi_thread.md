@@ -7,6 +7,7 @@ RTSP 영상 스트리밍과 YOLO 또는 SAM 처리를 별도의 쓰레드로 분
 
 코드 예제
 
+```python
 import cv2
 import threading
 import queue
@@ -115,27 +116,27 @@ POI_RECT = (100, 100, 300, 300)  # x, y, w, h
 if __name__ == "__main__":
     app = MainApp(RTSP_URL, POI_RECT)
     app.start()
-
+```
+```
 코드 설명
-	1.	VideoStreamThread
-	•	RTSP URL에서 프레임을 읽어 frame_queue에 넣습니다.
-	•	cap.read() 실패 시 적절한 처리 및 대기 시간을 추가.
-	2.	ProcessingThread
-	•	frame_queue에서 프레임을 받아 POI를 추출.
-	•	YOLO 또는 SAM을 사용해 해당 프레임을 처리하고 결과를 result_queue에 넣습니다.
-	•	처리 부분은 process_poi 함수에 작성.
-	3.	MainApp
-	•	메인 쓰레드에서 두 개의 쓰레드를 실행.
-	•	VideoStreamThread의 프레임을 화면에 표시.
-	•	ProcessingThread의 결과를 화면에 표시.
+1.	VideoStreamThread
+•	RTSP URL에서 프레임을 읽어 frame_queue에 넣습니다.
+•	cap.read() 실패 시 적절한 처리 및 대기 시간을 추가.
+2.	ProcessingThread
+•	frame_queue에서 프레임을 받아 POI를 추출.
+•	YOLO 또는 SAM을 사용해 해당 프레임을 처리하고 결과를 result_queue에 넣습니다.
+•	처리 부분은 process_poi 함수에 작성.
+3.	MainApp
+•	메인 쓰레드에서 두 개의 쓰레드를 실행.
+•	VideoStreamThread의 프레임을 화면에 표시.
+•	ProcessingThread의 결과를 화면에 표시.
 
 추가 사항
-	1.	YOLO 또는 SAM 모델 로드를 ProcessingThread의 초기화 메서드(__init__)에 추가하세요.
-	2.	result_queue의 결과는 필요에 따라 POI 좌표로 매핑하여 화면에 출력할 수 있습니다.
-	3.	쓰레드 종료 시 stop() 메서드로 자원을 정리합니다.
+1.	YOLO 또는 SAM 모델 로드를 ProcessingThread의 초기화 메서드(__init__)에 추가하세요.
+2.	result_queue의 결과는 필요에 따라 POI 좌표로 매핑하여 화면에 출력할 수 있습니다.
+3.	쓰레드 종료 시 stop() 메서드로 자원을 정리합니다.
 
 장점
-	•	RTSP 스트림과 영상 처리를 별도의 쓰레드로 분리해 병목현상 제거.
-	•	큐를 사용하여 안정적으로 데이터 교환 가능.
-
-위 코드로 시스템 성능을 최적화하고 안정성을 높일 수 있습니다. 추가 요구사항이 있으면 말씀해주세요!
+•	RTSP 스트림과 영상 처리를 별도의 쓰레드로 분리해 병목현상 제거.
+•	큐를 사용하여 안정적으로 데이터 교환 가능.
+```
