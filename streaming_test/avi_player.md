@@ -529,3 +529,211 @@ By following these steps and ensuring all dependencies are properly installed, y
 [10] pyqt5 qtmultimedia 패키지 설치 - MakingRobot - 티스토리 https://makingrobot.tistory.com/145
 
 
+
+
+------------
+ROI영역 추가해서 아래 부분에 보여지기.   
+아래는 PyQt5를 사용하여 메인 뷰어와 두 개의 작은 뷰어를 구현하고, 드래그로 ROI(Region of Interest) 영역을 설정하여 왼쪽 하단 뷰어에 선택한 영역을 표시하고, 오른쪽 하단 뷰어에 해당 영역의 엣지 검출(후처리) 결과를 표시하는 코드입니다. OpenCV를 사용하여 이미지 처리를 수행합니다.
+
+---
+
+## **코드**
+
+```python
+import sys
+import cv2
+import numpy as np
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
+    QPushButton, QWidget, QLabel, QFileDialog
+)
+from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
+from PyQt5.QtMultimediaWidgets import QVideoWidget
+from PyQt5.QtCore import QUrl, Qt, QRect
+from PyQt5.QtGui import QPixmap, QImage
+
+
+class VideoPlayer(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("PyQt5 Video Player with ROI")
+        self.setGeometry(100, 100, 1200, 800)
+
+        # Media player setup
+        self.media_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
+        self.video_widget = QVideoWidget()
+
+        # ROI variables
+        self.roi_start = None
+        self.roi_end = None
+        self.roi_rect = None
+
+        # Create UI components
+        self.create_ui()
+
+        # Connect media player to video widget
+        self.media_player.setVideoOutput(self.video_widget)
+
+    def create_ui(self):
+        main_layout = QVBoxLayout()
+        
+        # Main video display (top)
+        main_layout.addWidget(self.video_widget)
+
+        # Bottom layout for small viewers and controls
+        bottom_layout = QHBoxLayout()
+
+        # Left viewer (ROI display)
+        self.left_viewer = QLabel("ROI Viewer")
+        self.left_viewer.setFixedSize(400, 300)
+        self.left_viewer.setStyleSheet("background-color: black;")
+        bottom_layout.addWidget(self.left_viewer)
+
+        # Right viewer (Processed display)
+        self.right_viewer = QLabel("Processed Viewer")
+        self.right_viewer.setFixedSize(400, 300)
+        self.right_viewer.setStyleSheet("background-color: black;")
+        bottom_layout.addWidget(self.right_viewer)
+
+        # Control buttons
+        control_layout = QVBoxLayout()
+        
+        btn_open = QPushButton("Open Video")
+        btn_open.clicked.connect(self.open_file)
+        
+        btn_play_pause = QPushButton("Play")
+        btn_play_pause.clicked.connect(self.play_pause_video)
+        
+        control_layout.addWidget(btn_open)
+        control_layout.addWidget(btn_play_pause)
+        
+        bottom_layout.addLayout(control_layout)
+
+        main_layout.addLayout(bottom_layout)
+
+        # Set layout to central widget
+        central_widget = QWidget()
+        central_widget.setLayout(main_layout)
+        self.setCentralWidget(central_widget)
+
+    def open_file(self):
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Open Video", "", "Video Files (*.avi *.mp4 *.mkv)"
+        )
+        
+        if file_name:
+            self.media_player.setMedia(QMediaContent(QUrl.fromLocalFile(file_name)))
+            self.media_player.play()
+
+    def play_pause_video(self):
+        if self.media_player.state() == QMediaPlayer.PlayingState:
+            self.media_player.pause()
+            sender = self.sender()
+            sender.setText("Play")
+            
+        else:
+            self.media_player.play()
+            sender = self.sender()
+            sender.setText("Pause")
+
+    def mousePressEvent(self, event):
+        """Capture the starting point of the ROI."""
+        if event.button() == Qt.LeftButton and event.y() < self.video_widget.height():
+            self.roi_start = event.pos()
+
+    def mouseReleaseEvent(self, event):
+        """Capture the ending point of the ROI and process the region."""
+        if event.button() == Qt.LeftButton and event.y() < self.video_widget.height():
+            self.roi_end = event.pos()
+            
+            # Calculate ROI rectangle
+            x1, y1 = min(self.roi_start.x(), self.roi_end.x()), min(self.roi_start.y(), self.roi_end.y())
+            x2, y2 = max(self.roi_start.x(), self.roi_end.x()), max(self.roi_start.y(), self.roi_end.y())
+            self.roi_rect = QRect(x1, y1, x2 - x1, y2 - y1)
+
+            # Process ROI from current frame
+            if hasattr(self.media_player, 'current_frame'):
+                frame = getattr(self.media_player, 'current_frame', None)
+                if frame is not None:
+                    roi_frame = frame[y1:y2, x1:x2]
+                    processed_frame = cv2.Canny(roi_frame, 50, 150)  # Edge detection
+
+                    # Display ROI and processed frames in viewers
+                    if roi_frame.size > 0:
+                        roi_pixmap = self.convert_cv_to_pixmap(roi_frame)
+                        processed_pixmap = self.convert_cv_to_pixmap(processed_frame)
+
+                        if roi_pixmap:
+                            self.left_viewer.setPixmap(roi_pixmap.scaled(
+                                self.left_viewer.width(), 
+                                self.left_viewer.height(), 
+                                Qt.KeepAspectRatio))
+
+                        if processed_pixmap:
+                            self.right_viewer.setPixmap(processed_pixmap.scaled(
+                                self.right_viewer.width(), 
+                                self.right_viewer.height(), 
+                                Qt.KeepAspectRatio))
+
+    def convert_cv_to_pixmap(self, cv_img):
+        """Convert OpenCV image to QPixmap."""
+        height, width = cv_img.shape[:2]
+        
+        if len(cv_img.shape) == 3:  # Color image (BGR to RGB)
+            cv_img_rgb = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
+            qimg = QImage(cv_img_rgb.data, width, height, QImage.Format_RGB888)
+        
+        else:  # Grayscale image
+            qimg = QImage(cv_img.data, width, height, width, QImage.Format_Grayscale8)
+
+        return QPixmap.fromImage(qimg)
+
+
+# Main application loop
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    player = VideoPlayer()
+    player.show()
+    sys.exit(app.exec_())
+```
+
+---
+
+## **코드 설명**
+
+### **기능 구현**
+1. **메인 뷰어**:
+   - `QVideoWidget`을 사용하여 동영상을 재생합니다.
+   - 마우스 드래그 이벤트를 통해 ROI를 설정합니다.
+
+2. **하단 뷰어**:
+   - 왼쪽 하단: 선택한 ROI 영역을 표시합니다.
+   - 오른쪽 하단: ROI 영역에 대해 OpenCV로 엣지 검출(`cv2.Canny`)을 수행한 결과를 표시합니다.
+
+3. **ROI 설정**:
+   - `mousePressEvent`와 `mouseReleaseEvent`에서 드래그 시작 및 끝 좌표를 캡처하여 ROI 영역을 계산합니다.
+   - 현재 프레임에서 해당 영역을 추출하고 처리합니다.
+
+4. **OpenCV와 PyQt5 연동**:
+   - OpenCV 이미지를 PyQt5에서 사용할 수 있도록 `QPixmap`으로 변환합니다.
+
+---
+
+## **실행 방법**
+
+1. 위 코드를 Python 파일로 저장합니다(예: `pyqt5_roi_video_player.py`).
+2. 필요한 라이브러리를 설치합니다:
+
+   ```bash
+   pip install pyqt5 opencv-python-headless numpy
+   ```
+
+3. 프로그램을 실행하고 동영상을 선택한 후 마우스로 드래그하여 ROI를 설정하면 하단 뷰어에 결과가 표시됩니다.
+
+출처
+
+
+
+
+
+
