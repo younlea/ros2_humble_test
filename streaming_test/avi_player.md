@@ -1001,7 +1001,7 @@ from PyQt5.QtGui import QPixmap, QImage
 class VideoPlayer(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("PyQt5 Video Player with ROI")
+        self.setWindowTitle("PyQt5 Video Player with ROI and Time Controls")
         self.setGeometry(100, 100, 1200, 800)
 
         # Video capture
@@ -1013,6 +1013,10 @@ class VideoPlayer(QMainWindow):
         self.roi_start = None
         self.roi_rect = None
         self.current_frame = None
+
+        # Video properties
+        self.video_width = None
+        self.video_height = None
 
         # UI setup
         self.create_ui()
@@ -1033,8 +1037,24 @@ class VideoPlayer(QMainWindow):
         self.btn_play_pause = QPushButton("Play")
         self.btn_play_pause.clicked.connect(self.play_pause_video)
 
+        self.btn_skip_back_10 = QPushButton("-10s")
+        self.btn_skip_back_10.clicked.connect(lambda: self.skip_video(-10))
+
+        self.btn_skip_back_5 = QPushButton("-5s")
+        self.btn_skip_back_5.clicked.connect(lambda: self.skip_video(-5))
+
+        self.btn_skip_forward_5 = QPushButton("+5s")
+        self.btn_skip_forward_5.clicked.connect(lambda: self.skip_video(5))
+
+        self.btn_skip_forward_10 = QPushButton("+10s")
+        self.btn_skip_forward_10.clicked.connect(lambda: self.skip_video(10))
+
         control_layout.addWidget(self.btn_open)
         control_layout.addWidget(self.btn_play_pause)
+        control_layout.addWidget(self.btn_skip_back_10)
+        control_layout.addWidget(self.btn_skip_back_5)
+        control_layout.addWidget(self.btn_skip_forward_5)
+        control_layout.addWidget(self.btn_skip_forward_10)
         main_layout.addLayout(control_layout)
 
         # ROI and processed viewers
@@ -1063,6 +1083,9 @@ class VideoPlayer(QMainWindow):
             if not self.cap.isOpened():
                 print("Error: Cannot open video.")
                 return
+
+            self.video_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+            self.video_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
             self.timer.start(30)
 
     def play_pause_video(self):
@@ -1073,6 +1096,15 @@ class VideoPlayer(QMainWindow):
             else:
                 self.timer.start(30)
                 self.btn_play_pause.setText("Pause")
+
+    def skip_video(self, seconds):
+        if self.cap and self.cap.isOpened():
+            fps = int(self.cap.get(cv2.CAP_PROP_FPS))
+            current_frame = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES))
+            new_frame = current_frame + seconds * fps
+            total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            new_frame = max(0, min(total_frames - 1, new_frame))
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, new_frame)
 
     def update_frame(self):
         ret, frame = self.cap.read()
@@ -1107,27 +1139,29 @@ class VideoPlayer(QMainWindow):
             self.video_widget.setPixmap(pixmap.scaled(self.video_widget.width(), self.video_widget.height(), Qt.KeepAspectRatio))
 
     def mousePressEvent(self, event):
-        """Start drawing ROI when the mouse is pressed."""
         if event.button() == Qt.LeftButton and self.video_widget.underMouse():
-            self.roi_start = (event.pos().x(), event.pos().y())
+            video_widget_size = self.video_widget.size()
+            self.roi_start = (
+                int(event.pos().x() * self.video_width / video_widget_size.width()),
+                int(event.pos().y() * self.video_height / video_widget_size.height())
+            )
 
     def mouseMoveEvent(self, event):
-        """Draw ROI rectangle dynamically as the mouse moves."""
         if event.buttons() == Qt.LeftButton and self.roi_start:
-            x1, y1 = self.roi_start
-            x2, y2 = event.pos().x(), event.pos().y()
-            self.roi_rect = QRect(x1, y1, x2 - x1, y2 - y1)
+            video_widget_size = self.video_widget.size()
+            x2 = int(event.pos().x() * self.video_width / video_widget_size.width())
+            y2 = int(event.pos().y() * self.video_height / video_widget_size.height())
+            self.roi_rect = QRect(*self.roi_start, x2 - self.roi_start[0], y2 - self.roi_start[1])
 
     def mouseReleaseEvent(self, event):
-        """Finalize the ROI when the mouse is released."""
         if event.button() == Qt.LeftButton and self.roi_start:
-            x1, y1 = self.roi_start
-            x2, y2 = event.pos().x(), event.pos().y()
-            self.roi_rect = QRect(x1, y1, x2 - x1, y2 - y1)
+            video_widget_size = self.video_widget.size()
+            x2 = int(event.pos().x() * self.video_width / video_widget_size.width())
+            y2 = int(event.pos().y() * self.video_height / video_widget_size.height())
+            self.roi_rect = QRect(*self.roi_start, x2 - self.roi_start[0], y2 - self.roi_start[1])
             self.roi_start = None
 
     def convert_cv_to_pixmap(self, cv_img):
-        """Convert OpenCV image to QPixmap."""
         height, width = cv_img.shape[:2]
         if len(cv_img.shape) == 3:  # Color image (BGR to RGB)
             cv_img = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
