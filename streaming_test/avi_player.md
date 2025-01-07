@@ -1138,28 +1138,70 @@ class VideoPlayer(QMainWindow):
         if pixmap:
             self.video_widget.setPixmap(pixmap.scaled(self.video_widget.width(), self.video_widget.height(), Qt.KeepAspectRatio))
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton and self.video_widget.underMouse():
-            video_widget_size = self.video_widget.size()
-            self.roi_start = (
-                int(event.pos().x() * self.video_width / video_widget_size.width()),
-                int(event.pos().y() * self.video_height / video_widget_size.height())
-            )
+def mousePressEvent(self, event):
+    """Capture the starting point of the ROI."""
+    if event.button() == Qt.LeftButton and self.video_widget.underMouse():
+        # Get position within the video widget
+        video_widget_rect = self.video_widget.geometry()
+        x_in_widget = event.x() - video_widget_rect.x()
+        y_in_widget = event.y() - video_widget_rect.y()
 
-    def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.LeftButton and self.roi_start:
-            video_widget_size = self.video_widget.size()
-            x2 = int(event.pos().x() * self.video_width / video_widget_size.width())
-            y2 = int(event.pos().y() * self.video_height / video_widget_size.height())
-            self.roi_rect = QRect(*self.roi_start, x2 - self.roi_start[0], y2 - self.roi_start[1])
+        # Convert to video coordinates
+        video_widget_size = self.video_widget.size()
+        x_ratio = self.video_width / video_widget_size.width()
+        y_ratio = self.video_height / video_widget_size.height()
 
-    def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton and self.roi_start:
-            video_widget_size = self.video_widget.size()
-            x2 = int(event.pos().x() * self.video_width / video_widget_size.width())
-            y2 = int(event.pos().y() * self.video_height / video_widget_size.height())
-            self.roi_rect = QRect(*self.roi_start, x2 - self.roi_start[0], y2 - self.roi_start[1])
-            self.roi_start = None
+        x_in_video = int(x_in_widget * x_ratio)
+        y_in_video = int(y_in_widget * y_ratio)
+
+        # Store the starting point of the ROI
+        self.roi_start = (x_in_video, y_in_video)
+
+def mouseMoveEvent(self, event):
+    """Update the ROI rectangle as the mouse moves."""
+    if event.buttons() == Qt.LeftButton and self.roi_start:
+        # Get position within the video widget
+        video_widget_rect = self.video_widget.geometry()
+        x_in_widget = event.x() - video_widget_rect.x()
+        y_in_widget = event.y() - video_widget_rect.y()
+
+        # Convert to video coordinates
+        video_widget_size = self.video_widget.size()
+        x_ratio = self.video_width / video_widget_size.width()
+        y_ratio = self.video_height / video_widget_size.height()
+
+        x_in_video = int(x_in_widget * x_ratio)
+        y_in_video = int(y_in_widget * y_ratio)
+
+        # Update the ROI rectangle
+        x1, y1 = self.roi_start
+        x2, y2 = x_in_video, y_in_video
+        self.roi_rect = QRect(min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1))
+
+def mouseReleaseEvent(self, event):
+    """Finalize the ROI rectangle."""
+    if event.button() == Qt.LeftButton and self.roi_start:
+        # Get position within the video widget
+        video_widget_rect = self.video_widget.geometry()
+        x_in_widget = event.x() - video_widget_rect.x()
+        y_in_widget = event.y() - video_widget_rect.y()
+
+        # Convert to video coordinates
+        video_widget_size = self.video_widget.size()
+        x_ratio = self.video_width / video_widget_size.width()
+        y_ratio = self.video_height / video_widget_size.height()
+
+        x_in_video = int(x_in_widget * x_ratio)
+        y_in_video = int(y_in_widget * y_ratio)
+
+        # Finalize the ROI rectangle
+        x1, y1 = self.roi_start
+        x2, y2 = x_in_video, y_in_video
+        self.roi_rect = QRect(min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1))
+
+        # Reset start point
+        self.roi_start = None
+
 
     def convert_cv_to_pixmap(self, cv_img):
         height, width = cv_img.shape[:2]
