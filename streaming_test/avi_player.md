@@ -1140,68 +1140,120 @@ class VideoPlayer(QMainWindow):
 
 def mousePressEvent(self, event):
     """Capture the starting point of the ROI."""
-    if event.button() == Qt.LeftButton and self.video_widget.underMouse():
-        # Get position within the video widget
-        video_widget_rect = self.video_widget.geometry()
-        x_in_widget = event.x() - video_widget_rect.x()
-        y_in_widget = event.y() - video_widget_rect.y()
+    if event.button() == Qt.LeftButton and self.video_widget.geometry().contains(event.pos()):
+        # Relative position within the video widget
+        x_offset = event.x() - self.video_widget.x()
+        y_offset = event.y() - self.video_widget.y()
 
-        # Convert to video coordinates
-        video_widget_size = self.video_widget.size()
-        x_ratio = self.video_width / video_widget_size.width()
-        y_ratio = self.video_height / video_widget_size.height()
+        # Adjust for video scaling
+        widget_width = self.video_widget.width()
+        widget_height = self.video_widget.height()
 
-        x_in_video = int(x_in_widget * x_ratio)
-        y_in_video = int(y_in_widget * y_ratio)
+        x_ratio = self.video_width / widget_width
+        y_ratio = self.video_height / widget_height
+
+        # Map to video coordinates
+        x_in_video = int(x_offset * x_ratio)
+        y_in_video = int(y_offset * y_ratio)
 
         # Store the starting point of the ROI
-        self.roi_start = (x_in_video, y_in_video)
+        self.drawing_box = True
+        self.start_point = (x_in_video, y_in_video)
 
 def mouseMoveEvent(self, event):
     """Update the ROI rectangle as the mouse moves."""
-    if event.buttons() == Qt.LeftButton and self.roi_start:
-        # Get position within the video widget
-        video_widget_rect = self.video_widget.geometry()
-        x_in_widget = event.x() - video_widget_rect.x()
-        y_in_widget = event.y() - video_widget_rect.y()
+    if self.drawing_box:
+        x_offset = event.x() - self.video_widget.x()
+        y_offset = event.y() - self.video_widget.y()
 
-        # Convert to video coordinates
-        video_widget_size = self.video_widget.size()
-        x_ratio = self.video_width / video_widget_size.width()
-        y_ratio = self.video_height / video_widget_size.height()
+        # Adjust for video scaling
+        widget_width = self.video_widget.width()
+        widget_height = self.video_widget.height()
 
-        x_in_video = int(x_in_widget * x_ratio)
-        y_in_video = int(y_in_widget * y_ratio)
+        x_ratio = self.video_width / widget_width
+        y_ratio = self.video_height / widget_height
+
+        # Map to video coordinates
+        x_in_video = int(x_offset * x_ratio)
+        y_in_video = int(y_offset * y_ratio)
 
         # Update the ROI rectangle
-        x1, y1 = self.roi_start
-        x2, y2 = x_in_video, y_in_video
-        self.roi_rect = QRect(min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1))
+        self.roi_rect = QRect(
+            min(self.start_point[0], x_in_video),
+            min(self.start_point[1], y_in_video),
+            abs(x_in_video - self.start_point[0]),
+            abs(y_in_video - self.start_point[1])
+        )
+
+        # Draw rectangle on the video widget
+        self.update_roi_on_main_view()
 
 def mouseReleaseEvent(self, event):
     """Finalize the ROI rectangle."""
-    if event.button() == Qt.LeftButton and self.roi_start:
-        # Get position within the video widget
-        video_widget_rect = self.video_widget.geometry()
-        x_in_widget = event.x() - video_widget_rect.x()
-        y_in_widget = event.y() - video_widget_rect.y()
+    if self.drawing_box:
+        self.drawing_box = False
+        x_offset = event.x() - self.video_widget.x()
+        y_offset = event.y() - self.video_widget.y()
 
-        # Convert to video coordinates
-        video_widget_size = self.video_widget.size()
-        x_ratio = self.video_width / video_widget_size.width()
-        y_ratio = self.video_height / video_widget_size.height()
+        # Adjust for video scaling
+        widget_width = self.video_widget.width()
+        widget_height = self.video_widget.height()
 
-        x_in_video = int(x_in_widget * x_ratio)
-        y_in_video = int(y_in_widget * y_ratio)
+        x_ratio = self.video_width / widget_width
+        y_ratio = self.video_height / widget_height
+
+        # Map to video coordinates
+        x_in_video = int(x_offset * x_ratio)
+        y_in_video = int(y_offset * y_ratio)
 
         # Finalize the ROI rectangle
-        x1, y1 = self.roi_start
-        x2, y2 = x_in_video, y_in_video
-        self.roi_rect = QRect(min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1))
+        self.roi_rect = QRect(
+            min(self.start_point[0], x_in_video),
+            min(self.start_point[1], y_in_video),
+            abs(x_in_video - self.start_point[0]),
+            abs(y_in_video - self.start_point[1])
+        )
 
-        # Reset start point
-        self.roi_start = None
+        # Update the ROI views
+        self.update_roi_views()
 
+def update_roi_on_main_view(self):
+    """Draw the ROI rectangle on the main video view."""
+    if self.current_frame is not None and self.roi_rect:
+        frame_with_roi = self.current_frame.copy()
+        x, y, w, h = self.roi_rect.x(), self.roi_rect.y(), self.roi_rect.width(), self.roi_rect.height()
+        cv2.rectangle(frame_with_roi, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        pixmap = self.convert_cv_to_pixmap(frame_with_roi)
+        self.video_widget.setPixmap(pixmap.scaled(
+            self.video_widget.width(),
+            self.video_widget.height(),
+            Qt.KeepAspectRatio
+        ))
+
+def update_roi_views(self):
+    """Update the ROI viewer and the processed viewer."""
+    if self.roi_rect and self.current_frame is not None:
+        x, y, w, h = self.roi_rect.x(), self.roi_rect.y(), self.roi_rect.width(), self.roi_rect.height()
+        roi_frame = self.current_frame[y:y + h, x:x + w]
+
+        # Update ROI viewer
+        roi_pixmap = self.convert_cv_to_pixmap(roi_frame)
+        if roi_pixmap:
+            self.left_viewer.setPixmap(roi_pixmap.scaled(
+                self.left_viewer.width(),
+                self.left_viewer.height(),
+                Qt.KeepAspectRatio
+            ))
+
+        # Update processed viewer (edge detection example)
+        processed_frame = cv2.Canny(roi_frame, 50, 150)
+        processed_pixmap = self.convert_cv_to_pixmap(processed_frame)
+        if processed_pixmap:
+            self.right_viewer.setPixmap(processed_pixmap.scaled(
+                self.right_viewer.width(),
+                self.right_viewer.height(),
+                Qt.KeepAspectRatio
+            ))
 
     def convert_cv_to_pixmap(self, cv_img):
         height, width = cv_img.shape[:2]
