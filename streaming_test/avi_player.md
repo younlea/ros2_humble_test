@@ -984,6 +984,163 @@ if __name__ == "__main__":
 
 출처
 
+-------------    
+# 수정 버젼.
+```python
+import sys
+import cv2
+import numpy as np
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
+    QPushButton, QWidget, QLabel, QFileDialog
+)
+from PyQt5.QtCore import QTimer, Qt, QRect
+from PyQt5.QtGui import QPixmap, QImage
+
+
+class VideoPlayer(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("PyQt5 Video Player with ROI")
+        self.setGeometry(100, 100, 1200, 800)
+
+        # Video capture
+        self.cap = None
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_frame)
+
+        # ROI variables
+        self.roi_start = None
+        self.roi_rect = None
+        self.current_frame = None
+
+        # UI setup
+        self.create_ui()
+
+    def create_ui(self):
+        main_layout = QVBoxLayout()
+
+        # Main video viewer
+        self.video_widget = QLabel()
+        self.video_widget.setStyleSheet("background-color: black;")
+        main_layout.addWidget(self.video_widget)
+
+        # Control buttons
+        control_layout = QHBoxLayout()
+        self.btn_open = QPushButton("Open Video")
+        self.btn_open.clicked.connect(self.open_file)
+
+        self.btn_play_pause = QPushButton("Play")
+        self.btn_play_pause.clicked.connect(self.play_pause_video)
+
+        self.btn_forward_10s = QPushButton("+10s")
+        self.btn_forward_10s.clicked.connect(lambda: self.skip_frames(10))
+
+        self.btn_forward_5s = QPushButton("+5s")
+        self.btn_forward_5s.clicked.connect(lambda: self.skip_frames(5))
+
+        self.btn_rewind_5s = QPushButton("-5s")
+        self.btn_rewind_5s.clicked.connect(lambda: self.skip_frames(-5))
+
+        self.btn_rewind_10s = QPushButton("-10s")
+        self.btn_rewind_10s.clicked.connect(lambda: self.skip_frames(-10))
+
+        control_layout.addWidget(self.btn_open)
+        control_layout.addWidget(self.btn_rewind_10s)
+        control_layout.addWidget(self.btn_rewind_5s)
+        control_layout.addWidget(self.btn_play_pause)
+        control_layout.addWidget(self.btn_forward_5s)
+        control_layout.addWidget(self.btn_forward_10s)
+        main_layout.addLayout(control_layout)
+
+        # ROI and processed viewers
+        viewers_layout = QHBoxLayout()
+
+        self.roi_viewer = QLabel("ROI Viewer")
+        self.roi_viewer.setFixedSize(400, 300)
+        self.roi_viewer.setStyleSheet("background-color: black;")
+
+        self.processed_viewer = QLabel("Processed Viewer")
+        self.processed_viewer.setFixedSize(400, 300)
+        self.processed_viewer.setStyleSheet("background-color: black;")
+
+        viewers_layout.addWidget(self.roi_viewer)
+        viewers_layout.addWidget(self.processed_viewer)
+        main_layout.addLayout(viewers_layout)
+
+        central_widget = QWidget()
+        central_widget.setLayout(main_layout)
+        self.setCentralWidget(central_widget)
+
+    def open_file(self):
+        file_name, _ = QFileDialog.getOpenFileName(self, "Open Video", "", "Video Files (*.avi *.mp4 *.mkv)")
+        if file_name:
+            self.cap = cv2.VideoCapture(file_name)
+            if not self.cap.isOpened():
+                print("Error: Cannot open video.")
+                return
+            self.timer.start(30)
+
+    def play_pause_video(self):
+        if self.cap and self.cap.isOpened():
+            if self.timer.isActive():
+                self.timer.stop()
+                self.btn_play_pause.setText("Play")
+            else:
+                self.timer.start(30)
+                self.btn_play_pause.setText("Pause")
+
+    def skip_frames(self, seconds):
+        if self.cap and self.cap.isOpened():
+            fps = int(self.cap.get(cv2.CAP_PROP_FPS))
+            current_frame = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES))
+            target_frame = current_frame + seconds * fps
+            target_frame = max(0, min(target_frame, int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT)) - 1))
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+
+    def update_frame(self):
+        ret, frame = self.cap.read()
+        if not ret:
+            self.timer.stop()
+            return
+
+        self.current_frame = frame.copy()
+        pixmap = self.convert_cv_to_pixmap(frame)
+        if pixmap:
+            self.video_widget.setPixmap(pixmap.scaled(self.video_widget.width(), self.video_widget.height(), Qt.KeepAspectRatio))
+
+        # Update ROI viewer and processed viewer
+        if self.roi_rect:
+            x1, y1, x2, y2 = self.roi_rect.getCoords()
+            roi_frame = self.current_frame[y1:y2, x1:x2]
+            processed_frame = cv2.Canny(roi_frame, 50, 150) if roi_frame.size > 0 else None
+
+            if roi_frame.size > 0:
+                roi_pixmap = self.convert_cv_to_pixmap(roi_frame)
+                if roi_pixmap:
+                    self.roi_viewer.setPixmap(roi_pixmap.scaled(self.roi_viewer.width(), self.roi_viewer.height(), Qt.KeepAspectRatio))
+
+            if processed_frame is not None:
+                processed_pixmap = self.convert_cv_to_pixmap(processed_frame)
+                if processed_pixmap:
+                    self.processed_viewer.setPixmap(processed_pixmap.scaled(self.processed_viewer.width(), self.processed_viewer.height(), Qt.KeepAspectRatio))
+
+    def convert_cv_to_pixmap(self, cv_img):
+        height, width = cv_img.shape[:2]
+        if len(cv_img.shape) == 3:
+            cv_img = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
+            qimg = QImage(cv_img.data, width, height, cv_img.strides[0], QImage.Format_RGB888)
+        else:
+            qimg = QImage(cv_img.data, width, height, cv_img.strides[0], QImage.Format_Grayscale8)
+        return QPixmap.fromImage(qimg)
+
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    player = VideoPlayer()
+    player.show()
+    sys.exit(app.exec_())
+```
 
 
 
