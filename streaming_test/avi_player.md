@@ -1033,24 +1033,8 @@ class VideoPlayer(QMainWindow):
         self.btn_play_pause = QPushButton("Play")
         self.btn_play_pause.clicked.connect(self.play_pause_video)
 
-        self.btn_forward_10s = QPushButton("+10s")
-        self.btn_forward_10s.clicked.connect(lambda: self.skip_frames(10))
-
-        self.btn_forward_5s = QPushButton("+5s")
-        self.btn_forward_5s.clicked.connect(lambda: self.skip_frames(5))
-
-        self.btn_rewind_5s = QPushButton("-5s")
-        self.btn_rewind_5s.clicked.connect(lambda: self.skip_frames(-5))
-
-        self.btn_rewind_10s = QPushButton("-10s")
-        self.btn_rewind_10s.clicked.connect(lambda: self.skip_frames(-10))
-
         control_layout.addWidget(self.btn_open)
-        control_layout.addWidget(self.btn_rewind_10s)
-        control_layout.addWidget(self.btn_rewind_5s)
         control_layout.addWidget(self.btn_play_pause)
-        control_layout.addWidget(self.btn_forward_5s)
-        control_layout.addWidget(self.btn_forward_10s)
         main_layout.addLayout(control_layout)
 
         # ROI and processed viewers
@@ -1090,14 +1074,6 @@ class VideoPlayer(QMainWindow):
                 self.timer.start(30)
                 self.btn_play_pause.setText("Pause")
 
-    def skip_frames(self, seconds):
-        if self.cap and self.cap.isOpened():
-            fps = int(self.cap.get(cv2.CAP_PROP_FPS))
-            current_frame = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES))
-            target_frame = current_frame + seconds * fps
-            target_frame = max(0, min(target_frame, int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT)) - 1))
-            self.cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
-
     def update_frame(self):
         ret, frame = self.cap.read()
         if not ret:
@@ -1105,13 +1081,13 @@ class VideoPlayer(QMainWindow):
             return
 
         self.current_frame = frame.copy()
-        pixmap = self.convert_cv_to_pixmap(frame)
-        if pixmap:
-            self.video_widget.setPixmap(pixmap.scaled(self.video_widget.width(), self.video_widget.height(), Qt.KeepAspectRatio))
 
-        # Update ROI viewer and processed viewer
+        # Draw ROI on the frame
         if self.roi_rect:
             x1, y1, x2, y2 = self.roi_rect.getCoords()
+            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+            # Update ROI viewer and processed viewer
             roi_frame = self.current_frame[y1:y2, x1:x2]
             processed_frame = cv2.Canny(roi_frame, 50, 150) if roi_frame.size > 0 else None
 
@@ -1125,12 +1101,38 @@ class VideoPlayer(QMainWindow):
                 if processed_pixmap:
                     self.processed_viewer.setPixmap(processed_pixmap.scaled(self.processed_viewer.width(), self.processed_viewer.height(), Qt.KeepAspectRatio))
 
+        # Convert frame to QPixmap and display in the main viewer
+        pixmap = self.convert_cv_to_pixmap(frame)
+        if pixmap:
+            self.video_widget.setPixmap(pixmap.scaled(self.video_widget.width(), self.video_widget.height(), Qt.KeepAspectRatio))
+
+    def mousePressEvent(self, event):
+        """Start drawing ROI when the mouse is pressed."""
+        if event.button() == Qt.LeftButton and self.video_widget.underMouse():
+            self.roi_start = (event.pos().x(), event.pos().y())
+
+    def mouseMoveEvent(self, event):
+        """Draw ROI rectangle dynamically as the mouse moves."""
+        if event.buttons() == Qt.LeftButton and self.roi_start:
+            x1, y1 = self.roi_start
+            x2, y2 = event.pos().x(), event.pos().y()
+            self.roi_rect = QRect(x1, y1, x2 - x1, y2 - y1)
+
+    def mouseReleaseEvent(self, event):
+        """Finalize the ROI when the mouse is released."""
+        if event.button() == Qt.LeftButton and self.roi_start:
+            x1, y1 = self.roi_start
+            x2, y2 = event.pos().x(), event.pos().y()
+            self.roi_rect = QRect(x1, y1, x2 - x1, y2 - y1)
+            self.roi_start = None
+
     def convert_cv_to_pixmap(self, cv_img):
+        """Convert OpenCV image to QPixmap."""
         height, width = cv_img.shape[:2]
-        if len(cv_img.shape) == 3:
+        if len(cv_img.shape) == 3:  # Color image (BGR to RGB)
             cv_img = cv2.cvtColor(cv_img, cv2.COLOR_BGR2RGB)
             qimg = QImage(cv_img.data, width, height, cv_img.strides[0], QImage.Format_RGB888)
-        else:
+        else:  # Grayscale image
             qimg = QImage(cv_img.data, width, height, cv_img.strides[0], QImage.Format_Grayscale8)
         return QPixmap.fromImage(qimg)
 
