@@ -360,3 +360,172 @@ if __name__ == "__main__":
 [9] [PyQt]QMediaPlayer로 Video Player만들기 (not use Pixmap) https://venypark.tistory.com/24
 [10] Resizing a constant Video stream from OpenCV to PyQt5 ... - Qt Forum https://forum.qt.io/topic/84893/resizing-a-constant-video-stream-from-opencv-to-pyqt5-with-qpainter-in-a-qwidget-using-a-raspberry-pi
 
+-------------
+install 이후에도 멀티미디어가 동작을 하지 않는다.     
+sudo apt update     
+sudo apt install python3-pyqt5.qtmultimedia.    
+
+The error message **"no service found for - 'org.qt-project.qt.mediaplayer'"** typically occurs when the required backend or plugins for the `QtMultimedia` module are missing or not properly configured. This issue is common on systems where multimedia dependencies (like GStreamer or Qt plugins) are not installed. Below are step-by-step solutions to resolve this issue:
+
+---
+
+## **1. Install Required Multimedia Plugins**
+
+### **Linux**
+On Linux systems, ensure the necessary QtMultimedia plugins and GStreamer libraries are installed:
+
+```bash
+sudo apt update
+sudo apt install libqt5multimedia5-plugins
+sudo apt install gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-libav
+```
+
+These packages provide the necessary backend for multimedia playback in PyQt5.
+
+### **Windows**
+For Windows, ensure that the `libgstmediaplayer.so` plugin is available in your PyQt5 installation. If it's missing, you can try reinstalling PyQt5:
+
+```bash
+pip uninstall PyQt5 PyQt5-sip
+pip install PyQt5 PyQt5-sip
+```
+
+Additionally, ensure that you have a GStreamer installation on your system. Download and install GStreamer from its official website, and make sure to add it to your system's PATH.
+
+---
+
+## **2. Verify QtMultimedia Installation**
+
+Run the following Python script to check if `PyQt5.QtMultimedia` and its widgets are properly installed:
+
+```python
+from PyQt5.QtMultimedia import QMediaPlayer
+from PyQt5.QtMultimediaWidgets import QVideoWidget
+
+print("QtMultimedia is installed and working!")
+```
+
+If this script raises an error, reinstall the `python3-pyqt5.qtmultimedia` package:
+
+### **Linux**
+```bash
+sudo apt install python3-pyqt5.qtmultimedia
+```
+
+### **Windows/macOS**
+Reinstall using pip:
+```bash
+pip install PyQt5.QtMultimedia
+```
+
+---
+
+## **3. Debug Missing Plugins**
+
+If the error persists, enable plugin debugging to identify missing libraries or plugins:
+
+### **Linux**
+Set the `QT_DEBUG_PLUGINS` environment variable before running your script:
+```bash
+export QT_DEBUG_PLUGINS=1
+python your_script.py
+```
+
+### **Windows**
+Run your script in a terminal with the debug flag:
+```cmd
+set QT_DEBUG_PLUGINS=1
+python your_script.py
+```
+
+This will output detailed information about which plugins are missing or failing to load.
+
+---
+
+## **4. Manually Link Missing Plugins**
+
+If the debug output indicates a specific missing file (e.g., `libgstmediaplayer.so`), you can manually link it:
+
+### Example (Linux):
+```bash
+sudo ln -s /usr/lib/x86_64-linux-gnu/qt5/plugins/mediaservice/libgstmediaplayer.so /usr/local/lib/python3.x/dist-packages/PyQt5/Qt/plugins/mediaservice/libgstmediaplayer.so
+```
+
+Replace `/usr/lib/x86_64-linux-gnu/qt5/plugins/mediaservice/` with the correct path on your system.
+
+---
+
+## **5. Use Alternative Multimedia Frameworks**
+
+If resolving this issue proves too complex, consider using an alternative Python library for video playback, such as `opencv-python` or `pygame`. These libraries do not rely on QtMultimedia and are easier to set up.
+
+---
+
+## **6. Example Code for Testing**
+
+Here is a simple PyQt5 multimedia player code snippet to test after resolving dependencies:
+
+```python
+import sys
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QPushButton, QWidget
+from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
+from PyQt5.QtMultimediaWidgets import QVideoWidget
+from PyQt5.QtCore import QUrl
+
+class VideoPlayer(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("PyQt Video Player")
+        self.setGeometry(100, 100, 800, 600)
+
+        # Media player setup
+        self.media_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
+        self.video_widget = QVideoWidget()
+
+        # Layout setup
+        layout = QVBoxLayout()
+        layout.addWidget(self.video_widget)
+
+        # Play button setup
+        play_button = QPushButton("Play")
+        play_button.clicked.connect(self.play_video)
+        layout.addWidget(play_button)
+
+        # Main widget setup
+        widget = QWidget()
+        widget.setLayout(layout)
+        self.setCentralWidget(widget)
+
+        # Connect media player to video widget
+        self.media_player.setVideoOutput(self.video_widget)
+
+    def play_video(self):
+        file_url = "path/to/your/video.avi"  # Replace with your video file path
+        media_content = QMediaContent(QUrl.fromLocalFile(file_url))
+        self.media_player.setMedia(media_content)
+        self.media_player.play()
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    player = VideoPlayer()
+    player.show()
+    sys.exit(app.exec_())
+```
+
+---
+
+By following these steps and ensuring all dependencies are properly installed, you should be able to resolve the "no service found for - 'org.qt-project.qt.mediaplayer'" error and successfully run multimedia applications using PyQt5.
+
+출처
+[1] Python How To Create Media Player In PyQt5 - YouTube https://www.youtube.com/watch?v=a6_5vkxLwAw
+[2] How to install pyqt5 in jetson xavier - NVIDIA Developer Forums https://forums.developer.nvidia.com/t/how-to-install-pyqt5-in-jetson-xavier/79554
+[3] Error: No module named 'PyQt5.QtMultimedia' - Stack Overflow https://stackoverflow.com/questions/61355187/error-no-module-named-pyqt5-qtmultimedia
+[4] Plugin cannot be loaded for module “QtMultimedia ... - Qt Forum https://forum.qt.io/topic/109419/plugin-cannot-be-loaded-for-module-qtmultimedia-cannot-load-library-declarative_multimedia-dll
+[5] Qt Multimedia 5.15.18 - Qt Documentation https://doc.qt.io/qt-5/qtmultimedia-index.html
+[6] [PyQt] QtMultimedia 사용해 영상 재생하기 - 개발일지 - 티스토리 https://giveme-happyending.tistory.com/150
+[7] Missing library for PyQt 5.11 (Broken QtMultimedia module) #211 https://github.com/pypa/packaging-problems/issues/211
+[8] How To Install / Download PyQt5 -- 2024 - YouTube https://www.youtube.com/watch?v=aEUR-ngeXNA
+[9] How to install module "QtMultimedia" on Windows - Qt Forum https://forum.qt.io/topic/124038/how-to-install-module-qtmultimedia-on-windows
+[10] pyqt5 qtmultimedia 패키지 설치 - MakingRobot - 티스토리 https://makingrobot.tistory.com/145
+
+
