@@ -1412,3 +1412,163 @@ def update_frame(self):
 
 
 
+
+
+-------
+
+아래는 요청하신 **영상 아래에 프로그레스 바를 추가**하는 코드입니다. 이 코드는 `QSlider`를 사용하여 영상의 현재 재생 위치를 표시하고, 사용자가 슬라이더를 드래그하여 재생 위치를 변경할 수 있도록 구현했습니다.
+
+---
+
+## **코드**
+
+```python
+import sys
+import cv2
+import numpy as np
+from PyQt5.QtWidgets import (
+    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout,
+    QPushButton, QWidget, QLabel, QFileDialog, QSlider
+)
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QPixmap, QImage
+
+
+class VideoPlayer(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("PyQt5 Video Player with Progress Bar")
+        self.setGeometry(100, 100, 1200, 800)
+
+        # Video variables
+        self.cap = None
+        self.current_frame = None
+        self.total_frames = 0
+        self.fps = 0
+
+        # ROI variables
+        self.roi_start = None
+        self.roi_end = None
+        self.roi_rect = None
+
+        # Timer for updating frames in the main viewer
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_frame)
+
+        # Create UI components
+        self.create_ui()
+
+    def create_ui(self):
+        # Main layout
+        main_layout = QVBoxLayout()
+
+        # Main video display (top)
+        self.video_widget = QLabel()
+        self.video_widget.setStyleSheet("background-color: black;")
+        main_layout.addWidget(self.video_widget)
+
+        # Progress bar (slider)
+        self.progress_slider = QSlider(Qt.Horizontal)
+        self.progress_slider.setEnabled(False)  # Initially disabled until a video is loaded
+        self.progress_slider.sliderMoved.connect(self.seek_video)
+        main_layout.addWidget(self.progress_slider)
+
+        # Control buttons
+        control_layout = QHBoxLayout()
+        
+        btn_open = QPushButton("Open File")
+        btn_open.clicked.connect(self.open_file)
+        
+        btn_back_10s = QPushButton("-10s")
+        btn_back_10s.clicked.connect(lambda: self.skip_video(-10))
+        
+        btn_back_5s = QPushButton("-5s")
+        btn_back_5s.clicked.connect(lambda: self.skip_video(-5))
+        
+        btn_play_pause = QPushButton("Play/Pause")
+        btn_play_pause.clicked.connect(self.play_pause_video)
+        
+        btn_forward_5s = QPushButton("+5s")
+        btn_forward_5s.clicked.connect(lambda: self.skip_video(5))
+        
+        btn_forward_10s = QPushButton("+10s")
+        btn_forward_10s.clicked.connect(lambda: self.skip_video(10))
+        
+        control_layout.addWidget(btn_open)
+        control_layout.addWidget(btn_back_10s)
+        control_layout.addWidget(btn_back_5s)
+        control_layout.addWidget(btn_play_pause)
+        control_layout.addWidget(btn_forward_5s)
+        control_layout.addWidget(btn_forward_10s)
+        
+        main_layout.addLayout(control_layout)
+
+        # Bottom layout for ROI and processed viewers
+        bottom_layout = QHBoxLayout()
+
+        # Left viewer (ROI display)
+        self.left_viewer = QLabel("ROI Viewer")
+        self.left_viewer.setFixedSize(400, 300)
+        self.left_viewer.setStyleSheet("background-color: black;")
+        
+        # Right viewer (Processed display)
+        self.right_viewer = QLabel("Processed Viewer")
+        self.right_viewer.setFixedSize(400, 300)
+        self.right_viewer.setStyleSheet("background-color: black;")
+
+        bottom_layout.addWidget(self.left_viewer)
+        bottom_layout.addWidget(self.right_viewer)
+
+        main_layout.addLayout(bottom_layout)
+
+        # Set layout to central widget
+        central_widget = QWidget()
+        central_widget.setLayout(main_layout)
+        
+        self.setCentralWidget(central_widget)
+
+    def open_file(self):
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Open Video", "", "Video Files (*.avi *.mp4 *.mkv)"
+        )
+        
+        if file_name:
+            # Open video with OpenCV to extract frames manually
+            self.cap = cv2.VideoCapture(file_name)
+            if not self.cap.isOpened():
+                print("Error: Cannot open video.")
+                return
+            
+            # Get video properties
+            self.total_frames = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            self.fps = int(self.cap.get(cv2.CAP_PROP_FPS))
+
+            # Enable the progress slider and set its range
+            self.progress_slider.setEnabled(True)
+            self.progress_slider.setMaximum(self.total_frames - 1)
+
+            # Start the timer to update frames in the main viewer
+            self.timer.start(1000 // self.fps)
+
+    def play_pause_video(self):
+        if hasattr(self, 'cap') and self.cap.isOpened():
+            if self.timer.isActive():
+                self.timer.stop()
+            else:
+                self.timer.start(1000 // self.fps)
+
+    def skip_video(self, seconds):
+        """Skip forward or backward by a specified number of seconds."""
+        
+         current_position
+
+출처
+[1] PyQt5 QProgressBar – How to create progress bar ? - GeeksforGeeks https://www.geeksforgeeks.org/pyqt5-qprogressbar-how-to-create-progress-bar/
+[2] How To Make A PyQt5 Progress Bar Run While Executing A Function https://python-forum.io/thread-42032.html
+[3] Qt5 C++ Progressbar And Slider (QProgressbar And QSlider) #18 https://www.youtube.com/watch?v=tA-O_iRwIes
+[4] Howto combine a slider and a progress bar? - Qt Centre Forum https://www.qtcentre.org/threads/29176-Howto-combine-a-slider-and-a-progress-bar
+[5] Create a video player slider seeker with QSlider - Qt Forum https://forum.qt.io/topic/86436/create-a-video-player-slider-seeker-with-qslider
+[6] How to use QProgressBar Widget in PyQt5 - YouTube https://www.youtube.com/watch?v=8QGqT3cJ4ps
+[7] PyQt5 - How to automate Progress Bar while downloading using ... https://www.geeksforgeeks.org/pyqt5-how-to-automate-progress-bar-while-downloading-using-urllib/
+[8] Connect QProgressBar or QSlider to QMediaPlayer for song progress https://stackoverflow.com/questions/42602039/connect-qprogressbar-or-qslider-to-qmediaplayer-for-song-progress
+[9] PyQt5 Progress Bar and Status Bar Widgets - Codeloop https://codeloop.org/pyqt5-progress-bar-and-status-bar-widgets/
