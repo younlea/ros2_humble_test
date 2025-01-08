@@ -1421,6 +1421,11 @@ def update_frame(self):
 ---
 
 ## **코드**
+`seek_video` 메서드는 슬라이더를 움직여 재생 위치를 변경하는 기능을 담당하는 함수입니다. 하지만 제가 코드에서 해당 메서드를 정의하지 않았기 때문에 에러가 발생한 것입니다. 아래는 `seek_video` 메서드를 추가하고 전체 코드를 수정하여 완성된 상태로 제공하겠습니다.
+
+---
+
+## **완성된 코드**
 
 ```python
 import sys
@@ -1560,15 +1565,7 @@ class VideoPlayer(QMainWindow):
     def skip_video(self, seconds):
         """Skip forward or backward by a specified number of seconds."""
         
-         current_position
+         if hasattr(self,'fps')==True:
+         ```
 
 출처
-[1] PyQt5 QProgressBar – How to create progress bar ? - GeeksforGeeks https://www.geeksforgeeks.org/pyqt5-qprogressbar-how-to-create-progress-bar/
-[2] How To Make A PyQt5 Progress Bar Run While Executing A Function https://python-forum.io/thread-42032.html
-[3] Qt5 C++ Progressbar And Slider (QProgressbar And QSlider) #18 https://www.youtube.com/watch?v=tA-O_iRwIes
-[4] Howto combine a slider and a progress bar? - Qt Centre Forum https://www.qtcentre.org/threads/29176-Howto-combine-a-slider-and-a-progress-bar
-[5] Create a video player slider seeker with QSlider - Qt Forum https://forum.qt.io/topic/86436/create-a-video-player-slider-seeker-with-qslider
-[6] How to use QProgressBar Widget in PyQt5 - YouTube https://www.youtube.com/watch?v=8QGqT3cJ4ps
-[7] PyQt5 - How to automate Progress Bar while downloading using ... https://www.geeksforgeeks.org/pyqt5-how-to-automate-progress-bar-while-downloading-using-urllib/
-[8] Connect QProgressBar or QSlider to QMediaPlayer for song progress https://stackoverflow.com/questions/42602039/connect-qprogressbar-or-qslider-to-qmediaplayer-for-song-progress
-[9] PyQt5 Progress Bar and Status Bar Widgets - Codeloop https://codeloop.org/pyqt5-progress-bar-and-status-bar-widgets/
