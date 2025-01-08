@@ -1569,3 +1569,68 @@ class VideoPlayer(QMainWindow):
          ```
 
 출처
+
+
+아래는 `seek_video` 메서드의 완성된 코드입니다. 이 메서드는 슬라이더의 위치를 기반으로 특정 프레임으로 이동하며, 이동한 프레임을 메인 뷰어에 업데이트합니다.
+
+---
+
+## **`seek_video` 메서드**
+
+```python
+def seek_video(self, position):
+    """Seek to a specific frame based on the slider position."""
+    if self.cap and self.cap.isOpened():
+        # Stop the timer to prevent conflicts during seeking
+        self.timer.stop()
+
+        # Set the video position to the selected frame
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES, position)
+
+        # Update the progress slider to reflect the new position
+        self.progress_slider.setValue(position)
+
+        # Read the frame at the new position
+        ret, frame = self.cap.read()
+        if ret:
+            self.current_frame = frame
+
+            # Convert the frame to QPixmap and display it in the main viewer
+            pixmap = self.convert_cv_to_pixmap(frame)
+            if pixmap:
+                scaled_pixmap = pixmap.scaled(
+                    self.video_widget.width(),
+                    self.video_widget.height(),
+                    Qt.KeepAspectRatio
+                )
+                self.video_widget.setPixmap(scaled_pixmap)
+
+        # Restart the timer if the video was playing
+        if not self.timer.isActive():
+            self.timer.start(1000 // self.fps)
+```
+
+---
+
+## **코드 설명**
+
+1. **슬라이더 위치로 프레임 이동**:
+   - `self.cap.set(cv2.CAP_PROP_POS_FRAMES, position)`를 사용하여 OpenCV 비디오 객체를 지정된 프레임 위치로 이동합니다.
+
+2. **프레임 읽기 및 업데이트**:
+   - `self.cap.read()`로 현재 프레임을 읽고, 이를 `QPixmap`으로 변환하여 메인 뷰어에 표시합니다.
+
+3. **타이머 제어**:
+   - 슬라이더를 움직이는 동안 타이머를 멈추고(`self.timer.stop()`), 작업이 완료되면 타이머를 다시 시작합니다(`self.timer.start()`).
+
+4. **비율 유지**:
+   - `Qt.KeepAspectRatio`를 사용하여 프레임이 왜곡되지 않도록 크기를 조정합니다.
+
+---
+
+## **통합**
+
+위 코드를 기존 클래스에 추가하면 슬라이더를 통해 영상의 특정 위치로 이동할 수 있습니다. 이 코드는 슬라이더와 OpenCV 비디오 객체 간의 동기화를 처리하며, 영상 재생 중에도 정상적으로 작동합니다.
+
+출처
+
