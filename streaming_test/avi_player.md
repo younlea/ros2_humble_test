@@ -1272,6 +1272,143 @@ if __name__ == "__main__":
     sys.exit(app.exec_())
 ```
 
+## ROI 영역 이슈 해결 
+
+PyQt5에서 QLabel 위에 영상을 표시할 때, 창 크기를 조정하더라도 **비율(aspect ratio)을 유지**하며 영상을 스케일링하려면 `QLabel.setScaledContents(False)`를 사용하고, `QPixmap.scaled()` 메서드에서 `Qt.KeepAspectRatio` 옵션을 지정해야 합니다.
+
+아래는 요청하신 대로 **메인 뷰어의 x, y 비율을 유지**하면서 창 크기를 조정할 때도 영상이 왜곡되지 않도록 설정하는 코드입니다.
+
+---
+
+## **수정된 코드: UI 설정 부분**
+
+```python
+def create_ui(self):
+    # Main layout
+    main_layout = QVBoxLayout()
+
+    # Main video display (top)
+    self.video_widget = QLabel()
+    self.video_widget.setStyleSheet("background-color: black;")
+    self.video_widget.setScaledContents(False)  # Prevent QLabel from stretching the content
+    main_layout.addWidget(self.video_widget)
+
+    # Control buttons
+    control_layout = QHBoxLayout()
+    
+    btn_open = QPushButton("Open File")
+    btn_open.clicked.connect(self.open_file)
+    
+    btn_back_10s = QPushButton("-10s")
+    btn_back_10s.clicked.connect(lambda: self.skip_video(-10))
+    
+    btn_back_5s = QPushButton("-5s")
+    btn_back_5s.clicked.connect(lambda: self.skip_video(-5))
+    
+    btn_play_pause = QPushButton("Play/Pause")
+    btn_play_pause.clicked.connect(self.play_pause_video)
+    
+    btn_forward_5s = QPushButton("+5s")
+    btn_forward_5s.clicked.connect(lambda: self.skip_video(5))
+    
+    btn_forward_10s = QPushButton("+10s")
+    btn_forward_10s.clicked.connect(lambda: self.skip_video(10))
+    
+    control_layout.addWidget(btn_open)
+    control_layout.addWidget(btn_back_10s)
+    control_layout.addWidget(btn_back_5s)
+    control_layout.addWidget(btn_play_pause)
+    control_layout.addWidget(btn_forward_5s)
+    control_layout.addWidget(btn_forward_10s)
+    
+    main_layout.addLayout(control_layout)
+
+    # Bottom layout for ROI and processed viewers
+    bottom_layout = QHBoxLayout()
+
+    # Left viewer (ROI display)
+    self.left_viewer = QLabel("ROI Viewer")
+    self.left_viewer.setFixedSize(400, 300)
+    self.left_viewer.setStyleSheet("background-color: black;")
+    
+    # Right viewer (Processed display)
+    self.right_viewer = QLabel("Processed Viewer")
+    self.right_viewer.setFixedSize(400, 300)
+    self.right_viewer.setStyleSheet("background-color: black;")
+
+    bottom_layout.addWidget(self.left_viewer)
+    bottom_layout.addWidget(self.right_viewer)
+
+    main_layout.addLayout(bottom_layout)
+
+    # Set layout to central widget
+    central_widget = QWidget()
+    central_widget.setLayout(main_layout)
+    
+    self.setCentralWidget(central_widget)
+
+def update_frame(self):
+    """Update the main viewer with the current frame."""
+    ret, frame = self.cap.read()
+    
+    if not ret:
+        print("End of video.")
+        self.timer.stop()
+        return
+
+    # Store the current frame for ROI processing
+    self.current_frame = frame.copy()
+
+    # Draw ROI rectangle if it exists
+    if self.roi_rect:
+        x1, y1, x2, y2 = (self.roi_rect.x(), self.roi_rect.y(),
+                          self.roi_rect.x() + self.roi_rect.width(),
+                          self.roi_rect.y() + self.roi_rect.height())
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+    # Convert frame to QPixmap and display it in the main viewer
+    pixmap = self.convert_cv_to_pixmap(frame)
+
+    if pixmap:
+        # Scale the pixmap while keeping the aspect ratio
+        scaled_pixmap = pixmap.scaled(
+            self.video_widget.width(),
+            self.video_widget.height(),
+            Qt.KeepAspectRatio  # Maintain aspect ratio
+        )
+        self.video_widget.setPixmap(scaled_pixmap)
+```
+
+---
+
+## **코드 설명**
+
+### **1. QLabel의 `setScaledContents(False)`**
+- `setScaledContents(False)`는 QLabel이 콘텐츠를 강제로 늘리거나 줄이는 것을 방지합니다.
+- 대신 `QPixmap.scaled()` 메서드를 사용하여 크기를 조정합니다.
+
+### **2. `QPixmap.scaled()`**
+- `pixmap.scaled(width, height, Qt.KeepAspectRatio)`를 사용하면 주어진 폭과 높이에 맞춰 이미지를 스케일링하면서 원본 비율을 유지합니다.
+- 이를 통해 영상이 왜곡되지 않고 정확히 비율을 유지합니다.
+
+### **3. ROI 영역 처리**
+- ROI 영역은 OpenCV 프레임에 그려지며, QLabel에 표시하기 전에 비율을 유지한 상태로 스케일링됩니다.
+
+---
+
+## **전체 코드에서 변경된 부분**
+
+위 코드는 기존의 `update_frame` 함수와 UI 생성 부분에 적용됩니다. 이를 전체 코드에 통합하면 창 크기를 조정할 때도 메인 뷰어의 영상이 왜곡되지 않고 비율을 유지하며 표시됩니다.
+
+---
+
+## **실행 방법**
+
+1. 위 코드를 기존 프로젝트에 통합합니다.
+2. 프로그램을 실행하고 창 크기를 조정해도 메인 뷰어의 영상이 왜곡되지 않는지 확인하세요.
+3. ROI 영역 선택 및 하단 뷰어 업데이트 기능은 그대로 유지됩니다.
+
+출처
 
 
 
