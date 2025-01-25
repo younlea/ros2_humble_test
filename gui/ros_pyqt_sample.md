@@ -8,7 +8,7 @@ ROS 2 패키지를 생성하려면 ROS 2 워크스페이스의 `src` 디렉토�
 
 ```bash
 cd ~/ros2_ws/src
-ros2 pkg create --build-type ament_python --dependencies rclpy my_ros_gui_package
+ros2 pkg create --build-type ament_python my_ros_gui_package --dependencies rclpy 
 ```
 
 ### **명령어 설명**:
