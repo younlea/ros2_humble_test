@@ -780,7 +780,11 @@ if __name__ == '__main__':
 
 ---
 
-### **(3) GUI 코드**
+아래는 `gui.py`의 완성된 코드입니다. GUI는 공유 메모리에서 데이터를 읽어와 실시간으로 UI를 업데이트합니다.
+
+---
+
+### **완성된 GUI 코드**
 
 `gui.py`:
 
@@ -827,27 +831,101 @@ class GuiApp(QMainWindow):
     def update_labels(self):
         """공유 메모리에서 데이터를 읽어와 UI를 업데이트"""
         
-       # 각각의 값 읽기 
-       for (name,label) in zip(["shm_plate_type","shm_plate...
+        # plate_type 읽기
+        np_plate_type = np.ndarray((1,), dtype=np.float64, buffer=self.shm_plate_type.buf)
+        plate_type_value = np_plate_type[0]
+
+        # plate_set 읽기
+        np_plate_set = np.ndarray((1,), dtype=np.float64, buffer=self.shm_plate_set.buf)
+        plate_set_value = np_plate_set[0]
+
+        # vat_tilt 읽기
+        np_vat_tilt = np.ndarray((1,), dtype=np.float64, buffer=self.shm_vat_tilt.buf)
+        vat_tilt_value = np_vat_tilt[0]
+
+        # vat_status 읽기
+        np_vat_status = np.ndarray((1,), dtype=np.float64, buffer=self.shm_vat_status.buf)
+        vat_status_value = np_vat_status[0]
+
+        # UI 업데이트
+        self.label_plate_type.setText(f"plate_type: {plate_type_value}")
+        self.label_plate_set.setText(f"plate_set: {plate_set_value}")
+        self.label_vat_tilt.setText(f"vat_tilt: {vat_tilt_value}")
+        self.label_vat_status.setText(f"vat_status: {vat_status_value}")
+
+    def closeEvent(self, event):
+        """GUI 종료 시 공유 메모리 닫기"""
+        self.shm_plate_type.close()
+        self.shm_plate_set.close()
+        self.shm_vat_tilt.close()
+        self.shm_vat_status.close()
+        event.accept()
+
+
+def main():
+    """PyQt5 GUI 실행"""
+    app = QApplication(sys.argv)
+    gui = GuiApp()
+    gui.show()
+    sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+## **코드 설명**
+
+1. **공유 메모리 연결**:
+   - `shared_memory.SharedMemory(name="...")`를 사용하여 ROS 노드에서 생성한 공유 메모리에 연결합니다.
+   - 각 공유 메모리는 고유한 이름(`plate_type`, `plate_set`, `vat_tilt`, `vat_status`)을 가집니다.
+
+2. **데이터 읽기**:
+   - `np.ndarray`를 사용하여 공유 메모리 버퍼를 NumPy 배열로 변환합니다.
+   - 각 배열의 첫 번째 값(실수형 데이터)을 읽어옵니다.
+
+3. **UI 업데이트**:
+   - PyQt5의 `QTimer`를 사용하여 100ms마다 데이터를 읽고 레이블을 업데이트합니다.
+
+4. **종료 처리**:
+   - GUI가 종료될 때(`closeEvent`), 공유 메모리를 닫아 리소스를 해제합니다.
+
+---
+
+## **3. 실행 방법**
+
+### **(1) ROS 노드 실행**
+터미널에서 ROS 노드를 실행하여 공유 메모리를 생성하고 데이터를 업데이트합니다:
+
+```bash
+ros2 run my_ros_gui_package ros_node
+```
+
+### **(2) GUI 실행**
+별도의 터미널에서 GUI를 실행하여 공유 메모리 데이터를 읽어옵니다:
+
+```bash
+python3 my_ros_gui_package/gui.py
+```
+
+---
+
+## **4. 결과**
+
+- **ROS 노드**:
+  - `plate_type`, `plate_set`, `vat_tilt`, `vat_status` 토픽 데이터를 수신하고 공유 메모리에 저장합니다.
+
+- **GUI**:
+  - 공유 메모리에서 실시간으로 데이터를 읽어와 화면에 표시합니다.
+  - 데이터는 100ms 단위로 갱신됩니다.
+
+---
+
+이 구조는 ROS 노드와 GUI 간의 데이터 동기화를 효율적으로 처리하며, GUI는 데이터 변경 시점에 관계없이 항상 최신 값을 읽을 수 있습니다. 추가적인 질문이 있다면 말씀해주세요! 😊
 
 출처
-[1] multiprocessing.shared_memory — Shared memory for direct ... https://docs.python.org/3/library/multiprocessing.shared_memory.html
-[2] Shared Memory in python - Omid Sadeghnezhad https://sadeghnezhad.me/blog/2024/shared-memory-python/
-[3] Inter-Process Communication (IPC) in Python [with Examples] | Apriorit https://www.apriorit.com/dev-blog/web-python-ipc-methods
-[4] multiprocessing.shared_memory — 프로세스 간 직접 액세스를 위한 ... https://docs.python.org/ko/3.9/library/multiprocessing.shared_memory.html
-[5] [Python] shared memory 활용하여 프로세스 간 이미지 공유하기 https://whiteknight3672.tistory.com/338
-[6] Python Shared Memory in Multiprocessing - Mingze Gao https://mingze-gao.com/posts/python-shared-memory-in-multiprocessing/
-[7] Python Process - velog https://velog.io/@tritny6516/Python-Process
-[8] Shared memory in multiprocessing - python - Stack Overflow https://stackoverflow.com/questions/14124588/shared-memory-in-multiprocessing
-[9] High-Performance Inter-Process Communication Between C and ... https://rafalkwasny.com/message-queue-c-python-lmax-disruptor
-[10] [Python] Process간 Numpy Array 공유하기 -2편 - DevOcean - SK https://devocean.sk.com/blog/techBoardDetail.do?ID=163675
-[11] Integrated C++ and Python High-Performance Computing System https://www.linkedin.com/pulse/integrated-c-python-high-performance-computing-system-matthew-denman-uic3c
-[12] multiprocessing.shared_memory — 프로세스 간 직접 액세스를 위한 ... https://docs.python.org/ko/3.9/library/multiprocessing.shared_memory.html
-[13] Using Shared Memory in CUDA C/C++ | NVIDIA Technical Blog https://developer.nvidia.com/blog/using-shared-memory-cuda-cc/
-[14] [multiprocessing] shared memory - velog https://velog.io/@jk01019/multiprocessing-shared-memory
-
-
-
 
 
 
