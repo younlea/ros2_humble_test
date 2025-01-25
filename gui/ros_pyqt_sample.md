@@ -1,3 +1,223 @@
+아래는 ROS 2 패키지를 처음부터 생성하고, 위에서 설명한 구조로 구현하는 전체 과정을 단계별로 설명합니다.
+
+---
+
+## **1. ROS 2 패키지 생성**
+
+ROS 2 패키지를 생성하려면 ROS 2 워크스페이스의 `src` 디렉토리로 이동하여 다음 명령을 실행합니다:
+
+```bash
+cd ~/ros2_ws/src
+ros2 pkg create --build-type ament_python --dependencies rclpy my_ros_gui_package
+```
+
+### **명령어 설명**:
+- `--build-type ament_python`: Python 기반 ROS 2 패키지를 생성합니다.
+- `--dependencies rclpy`: `rclpy`를 패키지의 의존성으로 추가합니다.
+- `my_ros_gui_package`: 생성할 패키지의 이름입니다.
+
+### **결과 디렉토리 구조**:
+패키지가 생성되면 아래와 같은 기본 구조가 만들어집니다:
+
+```
+my_ros_gui_package/
+├── package.xml          # ROS 2 패키지 메타데이터 파일
+├── setup.py             # Python 패키지 설치 스크립트
+├── setup.cfg            # 빌드 설정 파일
+├── resource/
+│   └── my_ros_gui_package  # 빈 리소스 파일 (필요 시 사용)
+└── my_ros_gui_package/
+    ├── __init__.py      # Python 패키지 초기화 파일 (빈 파일)
+```
+
+---
+
+## **2. 코드 작성**
+
+### **(1) PyQt5 GUI 코드**
+
+`my_ros_gui_package/my_ros_gui_package/gui.py` 파일을 생성하고, GUI 관련 코드를 작성합니다:
+
+```python
+import sys
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget
+
+
+class GuiApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("PyQt5 GUI")
+
+        # UI 설정
+        layout = QVBoxLayout()
+        self.label = QLabel("Waiting for data...")
+        layout.addWidget(self.label)
+
+        central_widget = QWidget()
+        central_widget.setLayout(layout)
+        self.setCentralWidget(central_widget)
+
+    def update_label(self, data):
+        """ROS 데이터 수신 시 UI 업데이트"""
+        self.label.setText(f"Received: {data}")
+
+
+def main():
+    """PyQt5 GUI 실행"""
+    app = QApplication(sys.argv)
+    gui = GuiApp()
+    gui.show()
+    sys.exit(app.exec_())
+
+
+if __name__ == "__main__":
+    main()
+```
+
+---
+
+### **(2) ROS 노드 코드**
+
+`my_ros_gui_package/my_ros_gui_package/ros_node.py` 파일을 생성하고, ROS 노드와 GUI 실행 코드를 작성합니다:
+
+```python
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+import multiprocessing
+
+
+def start_gui():
+    """GUI 프로세스를 시작하는 함수"""
+    from my_ros_gui_package.gui import main as gui_main
+    gui_main()
+
+
+class PlateTypeSubscriber(Node):
+    def __init__(self):
+        super().__init__('plate_type_subscriber')
+
+        # plate_type 토픽 구독 설정
+        self.subscription = self.create_subscription(
+            String,
+            'plate_type',
+            self.listener_callback,
+            10
+        )
+        self.subscription  # prevent unused variable warning
+
+    def listener_callback(self, msg):
+        """토픽 데이터 수신 시 처리"""
+        self.get_logger().info(f'Received: {msg.data}')
+        # 여기서 IPC 또는 다른 방법으로 GUI와 데이터를 공유할 수 있음
+
+
+def main(args=None):
+    """ROS 노드 및 GUI 프로세스 실행"""
+    rclpy.init(args=args)
+
+    # GUI를 별도의 프로세스로 실행
+    gui_process = multiprocessing.Process(target=start_gui)
+    gui_process.start()
+
+    # ROS 노드 실행
+    node = PlateTypeSubscriber()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+        # GUI 프로세스 종료
+        if gui_process.is_alive():
+            gui_process.terminate()
+            gui_process.join()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+---
+
+## **3. `setup.py` 수정**
+
+`setup.py` 파일을 수정하여 ROS 노드와 GUI를 설치 가능하도록 설정합니다:
+
+```python
+from setuptools import setup
+
+package_name = 'my_ros_gui_package'
+
+setup(
+    name=package_name,
+    version='0.0.0',
+    packages=[package_name],
+    install_requires=['setuptools'],
+    zip_safe=True,
+    maintainer='Your Name',
+    maintainer_email='your_email@example.com',
+    description='A ROS 2 package with integrated PyQt5 GUI',
+    license='Apache License 2.0',
+    tests_require=['pytest'],
+    entry_points={
+        'console_scripts': [
+            'ros_node = my_ros_gui_package.ros_node:main',
+        ],
+    },
+)
+```
+
+---
+
+## **4. 빌드 및 실행**
+
+### **(1) 빌드**
+ROS 2 워크스페이스로 이동한 후 패키지를 빌드합니다:
+
+```bash
+cd ~/ros2_ws
+colcon build --packages-select my_ros_gui_package
+```
+
+### **(2) 실행**
+빌드가 완료되면 환경을 소스하고 ROS 노드를 실행합니다:
+
+```bash
+source install/setup.bash
+ros2 run my_ros_gui_package ros_node
+```
+
+---
+
+## **5. 최종 디렉토리 구조**
+
+최종적으로 디렉토리는 아래와 같이 구성됩니다:
+
+```
+my_ros_gui_package/
+├── package.xml          # ROS 2 패키지 메타데이터 파일
+├── setup.py             # Python 설치 스크립트
+├── setup.cfg            # 빌드 설정 파일
+├── resource/
+│   └── my_ros_gui_package  # 빈 리소스 파일 (필요 시 사용)
+└── my_ros_gui_package/
+    ├── __init__.py      # Python 패키지 초기화 파일 (빈 파일)
+    ├── ros_node.py      # ROS 노드 코드 (GUI 프로세스 실행 포함)
+    └── gui.py           # PyQt5 GUI 코드 (독립적인 UI)
+```
+
+---
+
+이제 `ros2 run my_ros_gui_package ros_node` 명령어로 ROS 노드와 PyQt5 GUI를 함께 실행할 수 있습니다. 추가적인 질문이나 요구 사항이 있다면 언제든 말씀해주세요! 😊
+
+출처
+
+
+
+
 아래는 **PyQt5 GUI를 별도의 클래스로 분리**하고, ROS 프로세스에서 GUI를 실행하도록 구현한 코드입니다. 이 방식은 ROS 2 노드가 실행될 때 GUI를 별도의 프로세스로 실행하며, 두 시스템이 독립적으로 동작하면서도 동일한 ROS 프로세스 내에서 관리됩니다.
 
 ---
