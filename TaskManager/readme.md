@@ -332,6 +332,12 @@ ros2 run process_c ros2_layer_c
 
 이제 A, B, C 프로세스가 ROS2를 통해 통신하며 데이터를 주고받습니다.
 
+## topic 확인
+> source install/setup.bash
+> ros2 topic list
+> ros2 topic info
+> ros2 topic echo
+> 
 ### 추가 제안
 **a.** 각 프로세스에서 발생할 수 있는 오류를 처리하기 위해 예외 처리를 추가해보세요.
 
