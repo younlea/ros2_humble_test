@@ -666,6 +666,188 @@ ros2 run my_ros_gui_package ros_node
 [22] How to Create a ROS 2 Python Publisher – Jazzy - Automatic Addison https://automaticaddison.com/how-to-create-a-ros-2-python-publisher-jazzy/
 
 
+Python의 `multiprocessing.shared_memory` 모듈을 사용하여 **공유 메모리**를 생성하고, ROS 노드에서 데이터를 업데이트하며 GUI에서 읽기만 하는 구조를 구현할 수 있습니다. 아래는 이를 구현하는 방법입니다.
+
+---
+
+## **1. 공유 메모리 기반 설계**
+
+### **구조**
+1. **ROS 노드**:
+   - `SharedMemory`를 사용하여 공유 메모리를 생성합니다.
+   - ROS 토픽 데이터를 수신하면 공유 메모리를 업데이트합니다.
+
+2. **GUI 프로세스**:
+   - 공유 메모리에 연결하여 데이터를 읽습니다.
+   - 주기적으로 데이터를 확인하여 GUI를 업데이트합니다.
+
+---
+
+## **2. 코드 구현**
+
+### **(1) 공유 메모리 초기화**
+공유 메모리는 `multiprocessing.shared_memory.SharedMemory` 클래스를 사용하여 생성합니다. 각 데이터는 고유한 이름을 가진 공유 메모리 블록에 저장됩니다.
+
+### **(2) ROS 노드 코드**
+
+`ros_node.py`:
+
+```python
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import String
+from multiprocessing import shared_memory
+import numpy as np
+
+
+class SharedMemoryManager:
+    """공유 메모리 관리 클래스"""
+    def __init__(self):
+        # 공유 메모리 생성 (4개의 float 값을 저장)
+        self.shm_plate_type = shared_memory.SharedMemory(create=True, size=8, name="plate_type")
+        self.shm_plate_set = shared_memory.SharedMemory(create=True, size=8, name="plate_set")
+        self.shm_vat_tilt = shared_memory.SharedMemory(create=True, size=8, name="vat_tilt")
+        self.shm_vat_status = shared_memory.SharedMemory(create=True, size=8, name="vat_status")
+
+    def update_shared_memory(self, shm_name: str, value: float):
+        """특정 공유 메모리를 업데이트"""
+        shm = shared_memory.SharedMemory(name=shm_name)
+        np_array = np.ndarray((1,), dtype=np.float64, buffer=shm.buf)
+        np_array[0] = value
+
+    def cleanup(self):
+        """공유 메모리 해제"""
+        self.shm_plate_type.close()
+        self.shm_plate_set.close()
+        self.shm_vat_tilt.close()
+        self.shm_vat_status.close()
+        self.shm_plate_type.unlink()
+        self.shm_plate_set.unlink()
+        self.shm_vat_tilt.unlink()
+        self.shm_vat_status.unlink()
+
+
+class FacilityStatusSubscriber(Node):
+    def __init__(self, shm_manager):
+        super().__init__('facility_status_subscriber')
+        self.shm_manager = shm_manager
+
+        # ROS 토픽 구독 설정
+        self.create_subscription(String, 'plate_type', self.plate_type_callback, 10)
+        self.create_subscription(String, 'plate_set', self.plate_set_callback, 10)
+        self.create_subscription(String, 'vat_tilt', self.vat_tilt_callback, 10)
+        self.create_subscription(String, 'vat_status', self.vat_status_callback, 10)
+
+    def plate_type_callback(self, msg):
+        value = float(msg.data)
+        self.get_logger().info(f"Received plate_type: {value}")
+        self.shm_manager.update_shared_memory("plate_type", value)
+
+    def plate_set_callback(self, msg):
+        value = float(msg.data)
+        self.get_logger().info(f"Received plate_set: {value}")
+        self.shm_manager.update_shared_memory("plate_set", value)
+
+    def vat_tilt_callback(self, msg):
+        value = float(msg.data)
+        self.get_logger().info(f"Received vat_tilt: {value}")
+        self.shm_manager.update_shared_memory("vat_tilt", value)
+
+    def vat_status_callback(self, msg):
+        value = float(msg.data)
+        self.get_logger().info(f"Received vat_status: {value}")
+        self.shm_manager.update_shared_memory("vat_status", value)
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    shm_manager = SharedMemoryManager()
+
+    node = FacilityStatusSubscriber(shm_manager)
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        shm_manager.cleanup()
+        rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
+```
+
+---
+
+### **(3) GUI 코드**
+
+`gui.py`:
+
+```python
+import sys
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget
+from PyQt5.QtCore import QTimer
+from multiprocessing import shared_memory
+import numpy as np
+
+
+class GuiApp(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("PyQt5 GUI with Shared Memory")
+
+        # UI 설정
+        layout = QVBoxLayout()
+        self.label_plate_type = QLabel("plate_type: Waiting...")
+        self.label_plate_set = QLabel("plate_set: Waiting...")
+        self.label_vat_tilt = QLabel("vat_tilt: Waiting...")
+        self.label_vat_status = QLabel("vat_status: Waiting...")
+
+        layout.addWidget(self.label_plate_type)
+        layout.addWidget(self.label_plate_set)
+        layout.addWidget(self.label_vat_tilt)
+        layout.addWidget(self.label_vat_status)
+
+        central_widget = QWidget()
+        central_widget.setLayout(layout)
+        self.setCentralWidget(central_widget)
+
+        # 공유 메모리 연결
+        self.shm_plate_type = shared_memory.SharedMemory(name="plate_type")
+        self.shm_plate_set = shared_memory.SharedMemory(name="plate_set")
+        self.shm_vat_tilt = shared_memory.SharedMemory(name="vat_tilt")
+        self.shm_vat_status = shared_memory.SharedMemory(name="vat_status")
+
+        # Timer 설정 (100ms마다 데이터 읽기)
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.update_labels)
+        self.timer.start(100)
+
+    def update_labels(self):
+        """공유 메모리에서 데이터를 읽어와 UI를 업데이트"""
+        
+       # 각각의 값 읽기 
+       for (name,label) in zip(["shm_plate_type","shm_plate...
+
+출처
+[1] multiprocessing.shared_memory — Shared memory for direct ... https://docs.python.org/3/library/multiprocessing.shared_memory.html
+[2] Shared Memory in python - Omid Sadeghnezhad https://sadeghnezhad.me/blog/2024/shared-memory-python/
+[3] Inter-Process Communication (IPC) in Python [with Examples] | Apriorit https://www.apriorit.com/dev-blog/web-python-ipc-methods
+[4] multiprocessing.shared_memory — 프로세스 간 직접 액세스를 위한 ... https://docs.python.org/ko/3.9/library/multiprocessing.shared_memory.html
+[5] [Python] shared memory 활용하여 프로세스 간 이미지 공유하기 https://whiteknight3672.tistory.com/338
+[6] Python Shared Memory in Multiprocessing - Mingze Gao https://mingze-gao.com/posts/python-shared-memory-in-multiprocessing/
+[7] Python Process - velog https://velog.io/@tritny6516/Python-Process
+[8] Shared memory in multiprocessing - python - Stack Overflow https://stackoverflow.com/questions/14124588/shared-memory-in-multiprocessing
+[9] High-Performance Inter-Process Communication Between C and ... https://rafalkwasny.com/message-queue-c-python-lmax-disruptor
+[10] [Python] Process간 Numpy Array 공유하기 -2편 - DevOcean - SK https://devocean.sk.com/blog/techBoardDetail.do?ID=163675
+[11] Integrated C++ and Python High-Performance Computing System https://www.linkedin.com/pulse/integrated-c-python-high-performance-computing-system-matthew-denman-uic3c
+[12] multiprocessing.shared_memory — 프로세스 간 직접 액세스를 위한 ... https://docs.python.org/ko/3.9/library/multiprocessing.shared_memory.html
+[13] Using Shared Memory in CUDA C/C++ | NVIDIA Technical Blog https://developer.nvidia.com/blog/using-shared-memory-cuda-cc/
+[14] [multiprocessing] shared memory - velog https://velog.io/@jk01019/multiprocessing-shared-memory
+
+
+
 
 
 
