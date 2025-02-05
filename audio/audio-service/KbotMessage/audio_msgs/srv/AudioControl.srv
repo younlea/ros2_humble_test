@@ -1,0 +1,6 @@
+string command  # "play" 또는 "set_volume"
+int32 track     # 재생할 음원 번호 (1, 2, 3 등), "set_volume"일 경우 무시
+float32 volume  # 볼륨 값 (0.0 ~ 1.0), "play"일 경우 무시
+---
+bool success    # 요청 처리 성공 여부
+string message  # 결과 메시지
