@@ -921,3 +921,242 @@ ros2 run audio_service client.py
 이 코드는 요구사항에 맞게 동작하며, 추가적인 음원 파일은 `file_map`에 추가하면 쉽게 확장 가능합니다! 😊
 
 출처
+
+
+
+
+
+
+
+경로가 맞지 않다는 문제는 코드에서 음원 파일 경로나 서비스 파일 경로를 정확히 지정하지 않았거나, ROS2 패키지 구조와 빌드 설정이 올바르지 않아서 발생할 수 있습니다. 아래는 수정된 코드와 함께 경로 문제를 해결하기 위한 지침입니다.
+
+---
+
+## **1. ROS2 패키지 구조**
+아래와 같은 디렉토리 구조를 사용해야 합니다:
+
+```
+audio_playback_service/
+├── package.xml
+├── setup.py
+├── setup.cfg
+├── resource/
+│   └── audio_playback_service
+├── audio_playback_service/
+│   ├── __init__.py
+│   └── audio_service.py
+├── srv/
+│   └── AudioControl.srv
+└── wav/
+    ├── 1_track.wav
+    ├── 2_track.wav
+    └── 3_track.wav
+```
+
+- **`audio_service.py`**: ROS2 서비스 노드 코드.
+- **`AudioControl.srv`**: 서비스 정의 파일.
+- **`wav/`**: 음원 파일이 저장된 디렉토리.
+
+---
+
+## **2. 서비스 정의 파일**
+**`srv/AudioControl.srv`**:
+```plaintext
+string command  # "play" 또는 "set_volume"
+int32 track     # 재생할 음원 번호 (1, 2, 3)
+float32 volume  # 볼륨 값 (0.0 ~ 1.0)
+---
+bool success    # 요청 처리 성공 여부
+string message  # 결과 메시지
+```
+
+---
+
+## **3. 서비스 노드 코드**
+**`audio_playback_service/audio_service.py`**:
+```python
+import os
+import rclpy
+from rclpy.node import Node
+from simpleaudio import WaveObject, stop_all
+from threading import Thread, Lock
+from audio_playback_service.srv import AudioControl  # srv 파일 정의
+
+class AudioServer(Node):
+    def __init__(self):
+        super().__init__('audio_server')
+        self.service = self.create_service(AudioControl, 'audio_control', self.handle_request)
+        self.current_track = None  # 현재 재생 중인 트랙 번호 (None이면 재생 중 아님)
+        self.volume = 1.0          # 초기 볼륨 값 (100%)
+        self.lock = Lock()         # 동시 접근 방지용 Lock 객체
+
+        # wav 디렉토리 설정 (패키지 내 위치)
+        self.wav_dir = os.path.join(os.path.dirname(__file__), '../wav')
+        self.get_logger().info(f'Audio Server initialized. Wav directory: {self.wav_dir}')
+
+    def handle_request(self, request, response):
+        with self.lock:
+            if request.command == "play":
+                if self.current_track is not None:
+                    response.success = False
+                    response.message = "이미 재생 중인 트랙이 있습니다."
+                    return response
+
+                if request.track not in [1, 2, 3]:
+                    response.success = False
+                    response.message = f"잘못된 트랙 번호: {request.track}"
+                    return response
+
+                self.play_track(request.track)
+                response.success = True
+                response.message = f"트랙 {request.track} 재생 시작"
+
+            elif request.command == "set_volume":
+                if not (0.0 <= request.volume <= 1.0):
+                    response.success = False
+                    response.message = f"잘못된 볼륨 값: {request.volume}"
+                    return response
+
+                self.volume = request.volume
+                response.success = True
+                response.message = f"볼륨 {self.volume * 100}%로 설정"
+
+            else:
+                response.success = False
+                response.message = "잘못된 명령어"
+
+            return response
+
+    def play_track(self, track_number):
+        try:
+            # 음원 파일 경로 생성 (예: wav/1_track.wav)
+            filename = os.path.join(self.wav_dir, f"{track_number}_track.wav")
+            
+            if not os.path.exists(filename):
+                self.get_logger().error(f"파일 없음: {filename}")
+                return
+
+            wave_obj = WaveObject.from_wave_file(filename)
+            play_obj = wave_obj.play()
+            self.current_track = track_number
+            
+            # 비동기적으로 재생 완료 대기 후 상태 초기화
+            def wait_and_reset():
+                play_obj.wait_done()
+                self.current_track = None
+                
+            Thread(target=wait_and_reset).start()
+
+        except Exception as e:
+            self.get_logger().error(f"재생 오류: {str(e)}")
+            self.current_track = None
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = AudioServer()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+---
+
+## **4. 클라이언트 코드**
+**`client.py`**:
+```python
+import rclpy
+from rclpy.node import Node
+from audio_playback_service.srv import AudioControl
+
+class AudioClient(Node):
+    def __init__(self):
+        super().__init__('audio_client')
+        self.client = self.create_client(AudioControl, 'audio_control')
+        while not self.client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('서비스 대기 중...')
+
+    def send_request(self, command, track=0, volume=0.0):
+        request = AudioControl.Request()
+        request.command = command
+        request.track = track
+        request.volume = volume
+
+        future = self.client.call_async(request)
+        rclpy.spin_until_future_complete(self, future)
+
+        if future.result() is not None:
+            self.get_logger().info(f"결과: {future.result().message}")
+        else:
+            self.get_logger().error("서비스 호출 실패")
+
+def main(args=None):
+    rclpy.init(args=args)
+    client = AudioClient()
+    
+    # 예제: 트랙 1 재생 요청
+    client.send_request("play", track=1)
+    
+    # 예제: 볼륨 50% 설정 요청
+    client.send_request("set_volume", volume=0.5)
+    
+    client.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+---
+
+## **5. 빌드 및 실행**
+
+### **패키지 빌드**
+1. ROS2 패키지를 빌드합니다.
+   ```bash
+   colcon build --packages-select audio_playback_service --symlink-install
+   ```
+
+2. 빌드 후 워크스페이스를 소스합니다.
+   ```bash
+   source install/setup.bash
+   ```
+
+### **서비스 실행**
+서비스 노드를 실행합니다.
+```bash
+ros2 run audio_playback_service audio_service
+```
+
+### **클라이언트 호출**
+클라이언트 노드를 실행하여 서비스를 호출합니다.
+```bash
+ros2 run audio_playback_service client.py 
+```
+
+---
+
+## **6. 주요 수정 사항**
+- `audio_service.py`: `self.wav_dir`를 통해 `wav/` 디렉토리를 정확히 설정.
+- `AudioControl.srv`: 서비스 정의 파일을 `srv/` 디렉토리에 위치.
+- 음원 파일 경로는 `wav/{트랙번호}_track.wav` 형식으로 지정.
+
+이제 경로 문제가 해결되었으며, 정상적으로 동작할 것입니다! 🎵
+
+출처
+[1] A Beginner's Tutorial For Understanding and Implementing Service ... https://www.codeproject.com/Articles/1072968/A-Beginners-Tutorial-For-Understanding-and-Impleme
+[2] GitHub - ddfreiling/libvlc-playback-service: Android library which wraps LibVLC in a background audio playback service https://github.com/ddfreiling/libvlc-playback-service
+[3] MediaSession unable to play audio in android 10 and above https://stackoverflow.com/questions/78436717/mediasession-unable-to-play-audio-in-android-10-and-above
+[4] Configuration File Description (Java) https://device.harmonyos.com/en/docs/apiref/doc-guides/basic-config-file-elements-0000000000034463
+[5] Audio Video Playback Tutorial - Tizen Developers https://developer.tizen.org/ko/community/tip-tech/audio-video-playback-tutorial
+[6] Configuration File Description (JavaScript/eTS) https://device.harmonyos.com/en/docs/apiref/doc-guides/package-structure-0000001333321033
+[7] module.json5 Configuration File - OpenHarmony/docs - Gitee https://gitee.com/openharmony/docs/blob/6fa46be7db5cd24c3b0cbab7702e573557e63c6a/en/application-dev/quick-start/module-configuration-file.md
+[8] harmony(鸿蒙)Application Package Structure Configuration File https://www.seaxiang.com/blog/b5f887e4efc84407873f03292e4e9611
+[9] module.json5 Configuration File - Gitee https://gitee.com/hwyaobaohua/docs_1/blob/master/en/application-dev/quick-start/module-configuration-file.md
+[10] WO2022052756A1 - 音频控制系统 https://patents.google.com/patent/WO2022052756A1/zh
