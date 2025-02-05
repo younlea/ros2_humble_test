@@ -1160,3 +1160,242 @@ ros2 run audio_playback_service client.py
 [8] harmony(鸿蒙)Application Package Structure Configuration File https://www.seaxiang.com/blog/b5f887e4efc84407873f03292e4e9611
 [9] module.json5 Configuration File - Gitee https://gitee.com/hwyaobaohua/docs_1/blob/master/en/application-dev/quick-start/module-configuration-file.md
 [10] WO2022052756A1 - 音频控制系统 https://patents.google.com/patent/WO2022052756A1/zh
+
+
+
+
+
+`ModuleNotFoundError: No module named 'audio_playback_service.srv'` 오류는 ROS2에서 사용자 정의 서비스 파일이 제대로 빌드되지 않았거나 Python 환경에서 해당 서비스 모듈을 찾을 수 없을 때 발생합니다. 아래는 이 문제를 해결하기 위한 단계별 가이드입니다.
+
+---
+
+## **1. 패키지 구조 확인**
+ROS2 패키지의 디렉토리 구조가 올바른지 확인하세요. 아래와 같은 구조를 유지해야 합니다:
+
+```
+ros2_ws/
+├── src/
+│   └── audio_playback_service/
+│       ├── package.xml
+│       ├── setup.py
+│       ├── setup.cfg
+│       ├── resource/
+│       │   └── audio_playback_service
+│       ├── audio_playback_service/
+│       │   ├── __init__.py
+│       │   └── audio_service.py
+│       ├── srv/
+│       │   └── AudioControl.srv
+│       └── wav/
+│           ├── 1_track.wav
+│           ├── 2_track.wav
+│           └── 3_track.wav
+```
+
+- `srv/AudioControl.srv`는 서비스 정의 파일입니다.
+- `audio_playback_service/audio_service.py`는 서비스 노드 코드입니다.
+
+---
+
+## **2. `package.xml` 확인**
+`package.xml` 파일에 `build_depend`와 `exec_depend`로 `rosidl_default_generators`와 `rosidl_default_runtime`을 추가해야 합니다.
+
+**수정된 `package.xml`:**
+```xml
+<package format="3">
+  <name>audio_playback_service</name>
+  <version>0.0.1</version>
+  <description>Audio playback service with ROS2</description>
+  <maintainer email="your_email@example.com">Your Name</maintainer>
+  <license>Apache License 2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>rosidl_default_generators</buildtool_depend>
+
+  <build_depend>rclpy</build_depend>
+  <build_depend>rosidl_default_generators</build_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
+```
+
+---
+
+## **3. `setup.py` 확인**
+서비스 파일이 Python 모듈로 생성되도록 설정해야 합니다.
+
+**수정된 `setup.py`:**
+```python
+from setuptools import setup
+
+package_name = 'audio_playback_service'
+
+setup(
+    name=package_name,
+    version='0.0.1',
+    packages=[package_name],
+    data_files=[
+        ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
+        ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/srv', ['srv/AudioControl.srv']),  # srv 파일 추가
+    ],
+    install_requires=['setuptools'],
+    zip_safe=True,
+    maintainer='Your Name',
+    maintainer_email='your_email@example.com',
+    description='Audio playback service with ROS2',
+    license='Apache License 2.0',
+    tests_require=['pytest'],
+    entry_points={
+        'console_scripts': [
+            'audio_service = audio_playback_service.audio_service:main',
+        ],
+    },
+)
+```
+
+---
+
+## **4. 빌드 및 설치**
+### **빌드**
+ROS2 워크스페이스에서 패키지를 빌드합니다:
+```bash
+cd ~/ros2_ws
+colcon build --packages-select audio_playback_service
+```
+
+### **빌드 후 환경 설정**
+빌드가 완료되면 환경 설정을 적용합니다:
+```bash
+source install/setup.bash
+```
+
+---
+
+## **5. 서비스 파일 생성 확인**
+서비스 파일이 제대로 생성되었는지 확인합니다:
+```bash
+ros2 interface show audio_playback_service/srv/AudioControl
+```
+
+정상적으로 생성되었다면 서비스 정의가 출력됩니다.
+
+---
+
+## **6. 문제 해결**
+### **문제: 여전히 모듈을 찾을 수 없음**
+1. **Python 경로 확인**:
+   Python 인터프리터가 ROS2 워크스페이스의 설치 경로를 참조하고 있는지 확인하세요:
+   ```bash
+   python3 -m site
+   ```
+   출력된 경로에 ROS2 워크스페이스의 `install` 디렉토리가 포함되어 있어야 합니다.
+
+2. **경로 강제 추가**:
+   만약 포함되지 않았다면, 스크립트 상단에 다음 코드를 추가하세요:
+   ```python
+   import sys
+   sys.path.append('/path/to/ros2_ws/install/audio_playback_service/lib/python3.10/site-packages')
+   ```
+
+### **문제: 서비스 인터페이스가 생성되지 않음**
+1. `colcon build` 중간에 에러가 발생하지 않았는지 확인하세요.
+2. `srv/AudioControl.srv` 파일의 경로와 문법이 올바른지 다시 확인하세요.
+3. 빌드 캐시를 삭제하고 다시 빌드해보세요:
+   ```bash
+   rm -rf build/ install/ log/
+   colcon build --packages-select audio_playback_service
+   ```
+
+---
+
+## **7. 테스트**
+### 서비스 실행:
+```bash
+ros2 run audio_playback_service audio_service
+```
+
+### 클라이언트 호출 테스트:
+작성한 클라이언트를 실행하거나 아래 명령어로 직접 호출해보세요:
+```bash
+ros2 service call /audio_control audio_playback_service/srv/AudioControl "{command: 'play', track: 1, volume: 1.0}"
+```
+
+---
+
+위 단계를 통해 오류를 해결할 수 있습니다. 주요 원인은 빌드 과정에서 서비스 정의가 제대로 처리되지 않거나 Python 경로 설정이 누락된 경우입니다.
+
+출처
+[1] [Python/VSCode/Macbook] ModuleNotFoundError: No module … https://whoishoo.tistory.com/640
+[2] 오디오 서비스가 실행되고 있지 않습니다 오류 해결 방법 - 서기랑 … https://seogilang.tistory.com/571
+[3] 전자정부프레임워크 프로젝트 디렉토리 구조 이해 :: subinto의 … https://subinto.tistory.com/109
+[4] [ROS2]패키지 빌드 방법 https://velog.io/@rtd7878/ROS2%ED%8C%A8%ED%82%A4%EC%A7%80-%EB%B9%8C%EB%93%9C-%EB%B0%A9%EB%B2%95
+[5] Python - ModuleNotFoundError: No module named 원인과 해결 … https://green-bin.tistory.com/175
+[6] Windows에서 “오디오 출력 장치가 설치되지 않았습니다” 오류를 … https://koreantech.org/windows%EC%97%90%EC%84%9C-%EC%98%A4%EB%94%94%EC%98%A4-%EC%B6%9C%EB%A0%A5-%EC%9E%A5%EC%B9%98%EA%B0%80-%EC%84%A4%EC%B9%98%EB%90%98%EC%A7%80-%EC%95%8A%EC%95%98%EC%8A%B5%EB%8B%88%EB%8B%A4-%EC%98%A4/
+[7] python 【No module named】找不到自己写的模块 3种情况及解 … https://blog.csdn.net/qq_44886213/article/details/123349273
+[8] 윈도우 ‘오디오 출력장치가 설치되어 있지 않습니다’ 에러 해결 방법 https://techchris.org/ko/%ec%9c%88%eb%8f%84%ec%9a%b0-%ec%98%a4%eb%94%94%ec%98%a4-%ec%b6%9c%eb%a0%a5%ec%9e%a5%ec%b9%98%ea%b0%80-%ec%84%a4%ec%b9%98%eb%90%98%ec%96%b4-%ec%9e%88%ec%a7%80-%ec%95%8a%ec%8a%b5%eb%8b%88%eb%8b%a4/
+[9] ModuleNotFoundError: No module named 'pyaudioop' #815 - GitHub https://github.com/jiaaro/pydub/issues/815
+[10] 윈도우10에서 "오디오 서비스가 실행되고 있지 않습니다." 해결 … https://blog.naver.com/PostView.naver?blogId=toruin84&logNo=222113502728
+[11] [파이썬/주피터노트북] ModuleNotFoundError : No module named ... 해결 방법 https://blog.naver.com/blue_summer_/222391344870
+[12] 오디오 서비스가 실행되고 있지 않습니다 라는 오류 - Microsoft … https://answers.microsoft.com/ko-kr/windows/forum/all/%ec%98%a4%eb%94%94%ec%98%a4/3d058d09-a519-436c-8f43-a99557816245
+[13] Module error · Issue #131 · nomadkaraoke/python-audio … https://github.com/nomadkaraoke/python-audio-separator/issues/131
+[14] 하나 이상의 오디오 서비스가 실행되지 않음 윈도우10 https://leesan77.tistory.com/entry/%ED%95%98%EB%82%98-%EC%9D%B4%EC%83%81%EC%9D%98-%EC%98%A4%EB%94%94%EC%98%A4-%EC%84%9C%EB%B9%84%EC%8A%A4%EA%B0%80-%EC%8B%A4%ED%96%89%EB%90%98%EC%A7%80-%EC%95%8A%EC%9D%8C-%EC%9C%88%EB%8F%84%EC%9A%B010
+[15] 윈도10 오디오 서비스 실행이 안되는 문제 - Microsoft 커뮤니티 https://answers.microsoft.com/ko-kr/windows/forum/all/%EC%9C%88%EB%8F%8410-%EC%98%A4%EB%94%94%EC%98%A4/edc5bef2-4d97-4847-9eb3-4ef607aa23c9
+[16] Windows Audio Architecture - Windows drivers https://learn.microsoft.com/fi-fi/windows-hardware/drivers/audio/windows-audio-architecture
+[17] Ubuntu Server 디렉토리 구조 공부 - 벨로그 https://velog.io/@zhyun/Ubuntu-Server-%EB%94%94%EB%A0%89%ED%86%A0%EB%A6%AC-%EA%B5%AC%EC%A1%B0-%EA%B3%B5%EB%B6%80
+[18] ROS2 첫걸음 (13) - 나만의 msg와 srv 파일(Python) https://refstop.github.io/ros2-custom-msgsrv.html
+[19] 디렉토리 패키지 구조의 선택과 이해 | Steady Runner https://stdrunner.github.io/2023/01/16/a1-package-structure.html
+[20] [ROS2]020: ROS 2의 파일 시스템 - velog https://velog.io/@hwang-chaewon/ROS2034
+[21] 윈도우 서버 2022에서 오디오 서비스 활성화시키기 https://chakhani.tistory.com/184
+[22] [ROS2] 명령어(패키지, 노드, 토픽, 서비스, 액션, 파라미터) https://informluke.tistory.com/entry/ROS2-%EB%AA%85%EB%A0%B9%EC%96%B4%ED%8C%A8%ED%82%A4%EC%A7%80-%EB%85%B8%EB%93%9C-%ED%86%A0%ED%94%BD-%EC%84%9C%EB%B9%84%EC%8A%A4-%EC%95%A1%EC%85%98
+[23] Windows 10에서 응답하지 않는 오디오 서비스를 수정하는 방법 https://ko.101-help.com/652ec5e794-fix-audio-services-windows-10eseo-eungdabhaji-anhneun-bangbeob/
+[24] ROS2: 인터페이스(Interface) - 로봇스토리 https://www.robotstory.co.kr/king/?vid=891
+[25] ROS2 with python - Understanding ROS2 Services https://soohwan-justin.tistory.com/81
+[26] [Ro] ROS 2 Commands « IanLecture https://goodgodgd.github.io/ian-lecture/archivers/ro-command
+[27] [python] os, os.path로 파이썬 경로 다루기 - ok-lab - 티스토리 https://ok-lab.tistory.com/163
+[28] Python | 모듈과 패키지 찾는 방법 - velog https://velog.io/@tiger/Python-%EB%AA%A8%EB%93%88%EA%B3%BC-%ED%8C%A8%ED%82%A4%EC%A7%80-%EC%B0%BE%EB%8A%94-%EB%B0%A9%EB%B2%95
+[29] [python] 디렉토리 경로 - 절대경로, 상대경로, 현재경로 - 이것저것 기록 https://anweh.tistory.com/6
+[30] [파이썬] 패키지, 모듈 위치 찾기 - 끄적끄적 코딩 - 티스토리 https://j3sung.tistory.com/581
+[31] 6.2.2 파일 및 디렉토리 다루기 - 나만 모르는 파이썬의 신비한 세상 https://wikidocs.net/256287
+[32] import 한 module이나 package 경로 확인하는 방법 - Nouu - 티스토리 https://nouu94.tistory.com/29
+[33] [Python] import path 확인, 추가 , 제거 - 개발린이 - 티스토리 https://developer-child.tistory.com/24
+[34] 파이썬 - import가 module과 package 를 찾아가는 경로 - velog https://velog.io/@devmin/%ED%8C%8C%EC%9D%B4%EC%8D%AC-import%EA%B0%80-module%EA%B3%BC-package-%EB%A5%BC-%EC%B0%BE%EC%95%84%EA%B0%80%EB%8A%94-%EA%B2%BD%EB%A1%9C
+[35] [파이썬 문법] 7-1. 모듈(Module)사용법과 경로지정2가지 https://it-plus.tistory.com/entry/%ED%8C%8C%EC%9D%B4%EC%8D%AC-%EB%AC%B8%EB%B2%95-7-1-%EB%AA%A8%EB%93%88-Module-%EC%82%AC%EC%9A%A9%EB%B2%95%EA%B3%BC-%EA%B2%BD%EB%A1%9C%EC%A7%80%EC%A0%95-2%EA%B0%80%EC%A7%80-%EC%A7%88%EB%AC%B8%EC%9C%BC%EB%A1%9C-%EA%B3%B5%EB%B6%80%ED%95%98%EA%B8%B0
+[36] 파이썬 패키지 설치 경로보기 - 악분의 블로그 - 티스토리 https://malwareanalysis.tistory.com/462
+[37] [ROS2] 패키지, 빌드 https://velog.io/@dumok_/ROS2-%ED%8C%A8%ED%82%A4%EC%A7%80-%EC%84%A4%EC%B9%98%EC%99%80-%ED%8A%9C%ED%86%A0%EB%A6%AC%EC%96%BC
+[38] 사용자 정의 msg 및 srv 파일 생성 | ROS2 Tutorial (Basic) https://quad-lab.gitbook.io/ros2-tutorial-1/msg-srv
+[39] ROS2 패키지 만들고 Workspace에 colcon build 및 PAL ... https://hyundoil.tistory.com/435
+[40] [ROS2 프로그래밍] ROS 패키지 설계 및 토픽 뜯어보기 https://dkssud8150.github.io/posts/package/
+[41] ROS2 with python - Basic Concept https://soohwan-justin.tistory.com/79
+[42] 사용자 정의 인터페이스 구현 https://zeta-edu-ros2.readthedocs.io/en/latest/courses/3.tutorial_client_libraries/9.implementing_custom_interface.html
+[43] ROS2 Creating a package 2 [ROS2 패키지 만들기 2] https://intuitive-robotics.tistory.com/175
+[44] (ROS2 기초)8. 토픽, 서비스, 액션 인터페이스 작성하기 https://kimbrain.tistory.com/540
+[45] ROS2 : BUILD SYSTEM & BUILD TOOLS - 2 https://veganwithbacon.tistory.com/351
+[46] 04장 Build system | ROS2 하루에 입문하기 https://robertchoi.gitbook.io/ros2/04-build-system
+[47] ROS2: 패키지(package) 만들기 https://www.robotstory.co.kr/king/?vid=884
+[48] ROS2 Minimal Tutorial - Basic - with-RL - 티스토리 https://with-rl.tistory.com/entry/ROS2-Minimal-Tutorial-Basic
+[49] 1.3 ROS2 설치 및 워크스페이스 설정 https://wikidocs.net/265283
+[50] 윈도우 오디오 드라이버 설치 완벽 가이드 | 문제 해결, 오디오 … https://blog.naver.com/PostView.naver?blogId=techping&logNo=223662309886
+[51] Python playsound module : r/learnpython - Reddit https://www.reddit.com/r/learnpython/comments/15fe5fo/python_playsound_module/
+[52] [Python] ModuleNotFoundError: No module named 에러 해결 https://developer-heo.tistory.com/27
+[53] Windows 11에서 오디오/사운드 드라이버를 설치하는 방법 (4가지 … https://choesin.com/windows-11%EC%97%90%EC%84%9C-%EC%98%A4%EB%94%94%EC%98%A4-%EC%82%AC%EC%9A%B4%EB%93%9C-%EB%93%9C%EB%9D%BC%EC%9D%B4%EB%B2%84%EB%A5%BC-%EC%84%A4%EC%B9%98%ED%95%98%EB%8A%94-%EB%B0%A9%EB%B2%954%EA%B0%80
+[54] How do i fix the following Python error: no module named … https://stackoverflow.com/questions/53990979/how-do-i-fix-the-following-python-error-no-module-named-playback
+[55] 그래서 어떻게 대화할건데?? ROS2 내 msg와 srv 만들기 - velog https://velog.io/@i_robo_u/%EA%B7%B8%EB%9E%98%EC%84%9C-%EC%96%B4%EB%96%BB%EA%B2%8C-%EB%8C%80%ED%99%94%ED%95%A0%EA%B1%B4%EB%8D%B0-ROS2-%EB%82%B4-msg%EC%99%80-srv-%EB%A7%8C%EB%93%A4%EA%B8%B0
+[56] [Linux] 설치 패키지 확인 & 파일 위치(find, which, whereis, locate) https://it-serial.tistory.com/entry/%EC%84%A4%EC%B9%98-%ED%8C%A8%ED%82%A4%EC%A7%80-%ED%99%95%EC%9D%B8-%ED%8C%8C%EC%9D%BC-%EC%9C%84%EC%B9%98%EA%B2%BD%EB%A1%9C-%ED%99%95%EC%9D%B8
+[57] [Spring] 기본 디렉토리 구조(Controller, Repository, Model, Service) https://meojiktard.tistory.com/11
+[58] ROS 파일시스템의 탐색 http://wiki.ros.org/ko/ROS/Tutorials/NavigatingTheFilesystem
+[59] ROS2 공부 3일차 - ROS2 기본 명령 익히기 https://k-min-algorithm.tistory.com/58
+[60] Python 파일 존재 여부 확인 | 파이썬에서 디렉토리가 존재하는지 확인 ... https://ko.mfgrobots.com/ooip/python/1008010949.html
+[61] Python 모듈 경로 확인 및 경로 추가 방법 - 끄적 - 티스토리 https://kyung123a.tistory.com/entry/Python-%EB%AA%A8%EB%93%88-%EA%B2%BD%EB%A1%9C-%ED%99%95%EC%9D%B8-%EB%B0%8F-%EA%B2%BD%EB%A1%9C-%EC%B6%94%EA%B0%80-%EB%B0%A9%EB%B2%95
+[62] 0.파일 존재여부 확인하는 방법 - 위키독스 https://wikidocs.net/14304
+[63] [Python] 파이썬 Module 설치 경로 쉽게 확인 하는 방법 (with. site ... https://kobong.tistory.com/82
+[64] [Python] 경로에 파일, 폴더 있는지 확인 - velog https://velog.io/@jbro321/Python-%EA%B2%BD%EB%A1%9C%EC%97%90-%ED%8C%8C%EC%9D%BC-%ED%8F%B4%EB%8D%94-%EC%9E%88%EB%8A%94%EC%A7%80-%ED%99%95%EC%9D%B8
+[65] [Python] 모듈 경로(Module Path) 알아보기 - 부자 되고픈 꽁냥이 https://zephyrus1111.tistory.com/160
+[66] ROS 2 패키지 생성 및 빌드 과정 설명 https://hhass.tistory.com/47
+[67] ROS로 살펴보는 CMake 작성법 2편 https://bgab0322.github.io/blog/ros/2023-04-18-ROS_CMake_2/
+[68] ROS2 service and client (C++) [Writing a ... - Intuitive-Robotics https://intuitive-robotics.tistory.com/193
