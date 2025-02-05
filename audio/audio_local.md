@@ -696,3 +696,228 @@ This approach ensures that your Jetson AGX system is fully functional in an offl
 [42] PDM can't install packages offline · Issue #2846 - GitHub https://github.com/pdm-project/pdm/issues/2846
 [43] Install ROS 2 and Dependencies - MathWorks https://www.mathworks.com/help/robotics/urseries/ug/install-ros-packages-and-dependencies-for-ros2.html
 [44] AOIT & POIT, apt and pip offline installation tools! : r/rust - Reddit https://www.reddit.com/r/rust/comments/14co2hb/aoit_poit_apt_and_pip_offline_installation_tools/
+
+
+
+
+
+아래는 ROS2 Humble 서비스로 음원 재생과 볼륨 조절을 처리하는 Python 코드를 작성한 예제입니다. `simpleaudio`를 사용하여 음원을 재생하며, 요청이 들어왔을 때 현재 재생 중인 음원이 있으면 새로운 요청은 무시하도록 구현하였습니다. ROS2 서비스는 음원 선택(1, 2, 3)과 볼륨 설정을 처리합니다.
+
+---
+
+## **구현 목표**
+1. **음원 재생**: `simpleaudio`를 사용하여 `.wav` 파일을 재생합니다.
+2. **재생 중 요청 무시**: 음원이 재생 중일 때 새로운 요청은 무시합니다.
+3. **볼륨 조절**: 볼륨 값을 설정할 수 있습니다.
+4. **ROS2 서비스**: ROS2 Humble의 서비스 호출을 통해 음원 선택과 볼륨 설정을 처리합니다.
+
+---
+
+## **ROS2 패키지 구조**
+ROS2 패키지를 생성하고 코드를 작성하기 위해 아래와 같은 디렉토리 구조를 사용합니다:
+
+```
+audio_service/
+├── package.xml
+├── setup.py
+├── setup.cfg
+├── resource/
+│   └── audio_service
+├── audio_service/
+│   ├── __init__.py
+│   └── audio_server.py
+└── srv/
+    └── AudioControl.srv
+```
+
+---
+
+## **1. 서비스 정의**
+
+서비스 요청과 응답 형식을 정의하는 `.srv` 파일을 작성합니다.
+
+**`srv/AudioControl.srv`**:
+```plaintext
+string command  # "play" 또는 "set_volume"
+int32 track     # 재생할 음원 번호 (1, 2, 3 등), "set_volume"일 경우 무시
+float32 volume  # 볼륨 값 (0.0 ~ 1.0), "play"일 경우 무시
+---
+bool success    # 요청 처리 성공 여부
+string message  # 결과 메시지
+```
+
+---
+
+## **2. 서비스 노드 코드**
+
+음원을 재생하고 볼륨을 조절하는 ROS2 서비스 노드 코드를 작성합니다.
+
+**`audio_service/audio_server.py`**:
+```python
+import rclpy
+from rclpy.node import Node
+from simpleaudio import WaveObject, stop_all
+from threading import Lock
+from custom_interfaces.srv import AudioControl  # srv 파일 정의 경로
+
+class AudioServer(Node):
+    def __init__(self):
+        super().__init__('audio_server')
+        self.service = self.create_service(AudioControl, 'audio_control', self.handle_request)
+        self.current_track = None  # 현재 재생 중인 트랙 번호 (None이면 재생 중 아님)
+        self.volume = 1.0          # 초기 볼륨 값 (100%)
+        self.lock = Lock()         # 쓰레드 안전성을 위한 Lock 객체
+
+        self.get_logger().info('Audio Server is ready.')
+
+    def handle_request(self, request, response):
+        with self.lock:  # 동시 접근 방지
+            if request.command == "play":
+                if self.current_track is not None:
+                    response.success = False
+                    response.message = "Track is already playing."
+                    return response
+
+                if request.track not in [1, 2, 3]:
+                    response.success = False
+                    response.message = f"Invalid track number: {request.track}."
+                    return response
+
+                self.play_track(request.track)
+                response.success = True
+                response.message = f"Playing track {request.track}."
+
+            elif request.command == "set_volume":
+                if not (0.0 <= request.volume <= 1.0):
+                    response.success = False
+                    response.message = f"Invalid volume level: {request.volume}."
+                    return response
+
+                self.volume = request.volume
+                response.success = True
+                response.message = f"Volume set to {self.volume * 100}%."
+
+            else:
+                response.success = False
+                response.message = "Invalid command."
+
+            return response
+
+    def play_track(self, track_number):
+        try:
+            file_map = {
+                1: "track1.wav",
+                2: "track2.wav",
+                3: "track3.wav"
+            }
+            wave_obj = WaveObject.from_wave_file(file_map[track_number])
+            play_obj = wave_obj.play()
+            play_obj.wait_done()  # 현재 트랙이 끝날 때까지 대기
+            self.current_track = None  # 재생 완료 후 상태 초기화
+
+        except Exception as e:
+            self.get_logger().error(f"Error playing track {track_number}: {e}")
+            self.current_track = None
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = AudioServer()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+---
+
+## **3. 클라이언트 코드**
+
+서비스를 호출하여 음원을 재생하거나 볼륨을 변경하는 클라이언트 코드를 작성합니다.
+
+**`client.py`**:
+```python
+import rclpy
+from rclpy.node import Node
+from custom_interfaces.srv import AudioControl
+
+class AudioClient(Node):
+    def __init__(self):
+        super().__init__('audio_client')
+        self.client = self.create_client(AudioControl, 'audio_control')
+        while not self.client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Waiting for service...')
+
+    def send_request(self, command, track=0, volume=0.0):
+        request = AudioControl.Request()
+        request.command = command
+        request.track = track
+        request.volume = volume
+
+        future = self.client.call_async(request)
+        rclpy.spin_until_future_complete(self, future)
+
+        if future.result() is not None:
+            self.get_logger().info(f"Response: {future.result().message}")
+        else:
+            self.get_logger().error("Service call failed.")
+
+def main(args=None):
+    rclpy.init(args=args)
+    client = AudioClient()
+
+    # Example: Play track 1.
+    client.send_request("play", track=1)
+
+    # Example: Set volume to 50%.
+    client.send_request("set_volume", volume=0.5)
+
+    client.destroy_node()
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+---
+
+## **4. 빌드 및 실행**
+
+### **패키지 빌드**
+1. ROS2 패키지를 빌드합니다.
+   ```bash
+   colcon build --packages-select audio_service --symlink-install
+   ```
+
+2. 빌드 후 워크스페이스를 소스합니다.
+   ```bash
+   source install/setup.bash
+   ```
+
+### **서비스 실행**
+서비스 노드를 실행합니다.
+```bash
+ros2 run audio_service audio_server
+```
+
+### **클라이언트 호출**
+클라이언트 노드를 실행하여 서비스를 호출합니다.
+```bash
+ros2 run audio_service client.py 
+```
+
+---
+
+## **5. 주요 기능 요약**
+- `play`: 지정된 트랙(1, 2, 3)을 재생하며 이미 다른 트랙이 재생 중이면 무시.
+- `set_volume`: 볼륨 값을 설정(0.0 ~ 1.0).
+- 멀티스레딩 안전성을 보장하기 위해 `Lock` 사용.
+
+이 코드는 요구사항에 맞게 동작하며, 추가적인 음원 파일은 `file_map`에 추가하면 쉽게 확장 가능합니다! 😊
+
+출처
