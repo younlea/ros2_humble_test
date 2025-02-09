@@ -126,5 +126,6 @@ if confidence > 0.5:  # 신뢰도가 50% 이상인 경우만 처리
 ---
 
 위 코드를 사용하면 학습한 YOLOv5 모델을 사용하여 단일 이미지에서 객체를 탐지하고 시각화할 수 있습니다! 🚀
-
-출처
+```
+conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+```
