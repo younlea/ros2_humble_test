@@ -160,3 +160,157 @@ if int(cls) == class_id_to_detect and conf > 0.5:  # 신뢰도 > 50%
 위 코드를 사용하면 학습한 YOLOv5 모델로 비디오에서 특정 클래스(예: `dish`)만 탐지하고 바운딩 박스를 그릴 수 있습니다! 🚀
 
 출처
+
+
+
+
+
+
+
+
+
+아래는 학습된 YOLOv5 모델(`best.pt`)을 사용하여 **비디오 파일(`test.avi`)**에서 모든 탐지된 객체를 표시하는 Python 코드입니다. 이 코드는 특정 클래스 필터링 없이, 학습된 모든 객체를 탐지하고 바운딩 박스를 그려 시각화합니다.
+
+---
+
+## **Python 코드: 비디오에서 모든 객체 탐지**
+
+```python
+import cv2
+import torch
+
+# 1. YOLOv5 모델 로드
+model = torch.hub.load('ultralytics/yolov5', 'custom', path='best.pt')  # 학습된 모델 경로 지정
+
+# 2. 비디오 파일 열기
+video_path = 'test.avi'  # 입력 비디오 파일 경로
+cap = cv2.VideoCapture(video_path)
+
+if not cap.isOpened():
+    print(f"Error: Cannot open video {video_path}")
+    exit()
+
+# 3. 비디오 처리 및 객체 탐지
+while cap.isOpened():
+    ret, frame = cap.read()
+    if not ret:
+        break
+
+    # BGR -> RGB 변환 (YOLOv5는 RGB 형식 필요)
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+    # YOLOv5 추론 실행
+    results = model(rgb_frame)
+    detections = results.xyxy[0]  # xyxy 포맷으로 탐지 결과 가져오기
+
+    # 탐지된 객체를 원본 프레임에 그리기
+    for detection in detections:
+        x_min, y_min, x_max, y_max, conf, cls = detection.tolist()
+        class_id = int(cls)  # 클래스 ID
+        confidence = float(conf)  # 신뢰도 점수
+
+        # 바운딩 박스 그리기
+        cv2.rectangle(frame, (int(x_min), int(y_min)), (int(x_max), int(y_max)), (0, 255, 0), 2)
+
+        # 클래스 이름과 신뢰도 표시
+        label = f"{model.names[class_id]} {confidence:.2f}"  # 클래스 이름과 신뢰도
+        cv2.putText(frame, label, (int(x_min), int(y_min) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+    # 결과 프레임 표시
+    cv2.imshow('YOLOv5 Detection', frame)
+
+    # 'q' 키를 누르면 종료
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
+```
+
+---
+
+## **코드 설명**
+
+### **1. YOLOv5 모델 로드**
+```python
+model = torch.hub.load('ultralytics/yolov5', 'custom', path='best.pt')
+```
+- `path='best.pt'`: 학습한 YOLOv5 모델의 가중치 파일 경로를 지정합니다.
+- `torch.hub.load`: PyTorch Hub를 사용하여 YOLOv5 모델을 로드합니다.
+- `custom`: 사용자 정의 모델을 로드하기 위한 옵션입니다.
+
+---
+
+### **2. 비디오 파일 열기**
+```python
+cap = cv2.VideoCapture(video_path)
+```
+- OpenCV의 `VideoCapture` 객체를 사용하여 비디오 파일을 엽니다.
+- `cap.read()`를 통해 프레임을 하나씩 읽어옵니다.
+
+---
+
+### **3. YOLOv5 추론 및 바운딩 박스 그리기**
+```python
+results = model(rgb_frame)
+detections = results.xyxy[0]
+```
+- `results.xyxy`: 탐지된 객체의 바운딩 박스 좌표와 클래스 정보를 포함합니다.
+- 각 탐지 결과는 `[x_min, y_min, x_max, y_max, confidence, class_id]` 형식입니다.
+
+```python
+cv2.rectangle(frame, (int(x_min), int(y_min)), (int(x_max), int(y_max)), (0, 255, 0), 2)
+```
+- OpenCV의 `rectangle` 함수를 사용하여 바운딩 박스를 그립니다.
+- `(0, 255, 0)`는 초록색을 의미하며 두께는 `2`입니다.
+
+```python
+label = f"{model.names[class_id]} {confidence:.2f}"
+cv2.putText(frame, label, (int(x_min), int(y_min) - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+```
+- `model.names`: 학습된 모델에 저장된 클래스 이름 리스트입니다.
+- 클래스 ID를 기반으로 이름과 신뢰도를 표시합니다.
+
+---
+
+### **4. 결과 표시**
+```python
+cv2.imshow('YOLOv5 Detection', frame)
+```
+- OpenCV의 `imshow` 함수로 탐지 결과를 실시간으로 표시합니다.
+- `'q'` 키를 누르면 프로그램이 종료됩니다.
+
+---
+
+## **추가 기능**
+
+### **결과 저장**
+탐지 결과를 동영상 파일로 저장하려면 OpenCV의 `VideoWriter`를 사용할 수 있습니다:
+```python
+# 비디오 저장 설정 추가 (초기화 단계에서)
+output_path = 'output.avi'
+fourcc = cv2.VideoWriter_fourcc(*'XVID')
+fps = int(cap.get(cv2.CAP_PROP_FPS))
+width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+
+# 프레임 저장 추가 (반복문 안에서)
+out.write(frame)
+
+# 종료 시 리소스 해제 추가
+out.release()
+```
+
+### **신뢰도 임계값 설정**
+특정 신뢰도 이상의 객체만 표시하려면 다음 조건을 추가하세요:
+```python
+if confidence > 0.5:  # 신뢰도 > 50%
+    # 바운딩 박스 및 라벨링 코드 삽입
+```
+
+---
+
+위 코드를 사용하면 학습한 YOLOv5 모델로 비디오에서 모든 객체를 탐지하고 바운딩 박스를 그릴 수 있습니다! 🚀
+
+출처
