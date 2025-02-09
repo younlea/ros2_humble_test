@@ -198,10 +198,38 @@ names:               # 클래스 이름 리스트 (CVAT에서 정의한 클래�
    cd yolov5
    pip install -r requirements.txt
    ```
-2. 학습 명령어 실행:
+2. data/data.yaml file 생성     
+  ```bash
+  yolov5$ cat data/data.yaml 
+  path: ./datasets/my_dataset  # 데이터셋 루트 경로
+  train: images/train  # 학습 이미지 경로
+  val: images/val      # 검증 이미지 경로
+  
+  nc: 3     # 클래스 개수 (예: CVAT에서 정의한 클래스 수)
+  names: ['nono','food','dish']              # 클래스 이름 리스트 (CVAT에서 정의한 클래스 이름)
+  ```
+3. dataset 구조 확인
+```bash
+   /yolov5$ tree datasets/ -L 3
+  datasets/
+  ├── copy_devide.sh
+  └── my_dataset
+      ├── images
+      │   ├── train
+      │   └── val
+      └── labels
+          ├── train
+          ├── train.cache
+          ├── val
+          └── val.cache
+```
+ 
+4. 학습 명령어 실행:
    ```bash
-   python train.py --img 640 --batch 16 --epochs 50 --data data.yaml --weights yolov5s.pt --name custom_model
+   python3 train.py --img 640 --batch 16 --epochs 50 --data data/data.yaml --weights yolov5s.py --name custom_model
    ```
+
+
 
 ### **YOLOv8 학습**
 1. Ultralytics 패키지를 설치합니다:
@@ -228,7 +256,7 @@ names:               # 클래스 이름 리스트 (CVAT에서 정의한 클래�
 - 모델 성능을 검증합니다.
 - YOLOv5:
   ```bash
-  python val.py --weights runs/train/custom_model/weights/best.pt --data data.yaml --img 640
+  python3 val.py --weights runs/train/custom_model4/weights/best.pt --data data.yaml --img 640
   ```
 - YOLOv8:
   ```bash
