@@ -103,7 +103,7 @@ dataset/
 ---
 
 -----
-### **Data set 분할 하기**
+### **Data set 분할 하기(train과 val 로 7:3으로 분할 카피) **
 
 1. **Prepare the directory structure**:
    - Ensure you have the following directories:
