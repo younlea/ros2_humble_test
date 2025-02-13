@@ -2,10 +2,11 @@
 
 ```python
 import sys
+import os
 import cv2
 import numpy as np
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QFileDialog, QLabel, QVBoxLayout, QPushButton, QWidget
+    QApplication, QMainWindow, QFileDialog, QLabel, QVBoxLayout, QPushButton, QWidget, QSpinBox, QHBoxLayout
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QRect
 from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen
@@ -38,24 +39,34 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("AVI Viewer with ROI Selection")
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 1024, 768)
 
         # UI Elements
         self.label = QLabel(self)
         self.label.setAlignment(Qt.AlignCenter)
         self.label.setStyleSheet("background-color: black;")
-        
-        self.start_button = QPushButton("Open Video", self)
-        self.start_button.clicked.connect(self.open_video)
 
-        self.capture_button = QPushButton("Start Capturing", self)
-        self.capture_button.setEnabled(False)
-        self.capture_button.clicked.connect(self.start_capturing)
+        self.start_button = QPushButton("Start Capturing", self)
+        self.start_button.setEnabled(False)
+        self.start_button.clicked.connect(self.toggle_capturing)
+
+        self.open_button = QPushButton("Open Video", self)
+        self.open_button.clicked.connect(self.open_video)
+
+        self.capture_rate_label = QLabel("Frames per second:", self)
+        self.capture_rate_spinbox = QSpinBox(self)
+        self.capture_rate_spinbox.setRange(1, 30)  # Set range for FPS (1 to 30)
+        self.capture_rate_spinbox.setValue(2)  # Default value
+
+        rate_layout = QHBoxLayout()
+        rate_layout.addWidget(self.capture_rate_label)
+        rate_layout.addWidget(self.capture_rate_spinbox)
 
         layout = QVBoxLayout()
         layout.addWidget(self.label)
+        layout.addWidget(self.open_button)
+        layout.addLayout(rate_layout)
         layout.addWidget(self.start_button)
-        layout.addWidget(self.capture_button)
 
         container = QWidget()
         container.setLayout(layout)
@@ -67,24 +78,36 @@ class MainWindow(QMainWindow):
         self.start_point = None  # Start point of mouse drag
         self.end_point = None  # End point of mouse drag
         self.current_frame = None  # Current frame for display and ROI
-
-        # Mouse interaction flags
-        self.drawing_roi = False
+        self.drawing_roi = False  # Mouse interaction flag
+        self.capturing = False  # Capturing state flag
+        self.output_folder = None
 
     def open_video(self):
         options = QFileDialog.Options()
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Open AVI File", "", "AVI Files (*.avi);;All Files (*)", options=options
         )
-        
+
         if file_path:
             if self.video_thread:
                 self.video_thread.stop()
-            
+
+            # Create output folder for captured images
+            video_name = os.path.splitext(os.path.basename(file_path))[0]
+            video_dir = os.path.dirname(file_path)
+            output_folder_name = f"captured_{video_name}"
+            output_folder_path = os.path.join(video_dir, output_folder_name)
+
+            if not os.path.exists(output_folder_path):
+                os.makedirs(output_folder_path)
+
+            self.output_folder = output_folder_path
+
+            # Start video thread
             self.video_thread = VideoThread(file_path)
             self.video_thread.change_pixmap_signal.connect(self.update_image)
             self.video_thread.start()
-            self.capture_button.setEnabled(True)
+            self.start_button.setEnabled(True)
 
     def update_image(self, frame):
         """Update the QLabel with the current frame."""
@@ -93,74 +116,77 @@ class MainWindow(QMainWindow):
             h, w, ch = rgb_image.shape
             bytes_per_line = ch * w
             qt_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+
             pixmap = QPixmap.fromImage(qt_image)
+
+            # Resize image to fit the window size dynamically
+            scaled_pixmap = pixmap.scaled(
+                self.label.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+            )
 
             # Draw ROI rectangle if available
             if self.roi_rect:
-                painter = QPainter(pixmap)
+                painter = QPainter(scaled_pixmap)
                 pen = QPen(Qt.red)
                 pen.setWidth(2)
                 painter.setPen(pen)
                 painter.drawRect(self.roi_rect)
                 painter.end()
 
-            self.label.setPixmap(pixmap)
+            self.label.setPixmap(scaled_pixmap)
             self.current_frame = frame
+
+    def resizeEvent(self, event):
+        """Handle window resizing to adjust the QLabel content."""
+        if isinstance(self.current_frame, np.ndarray):
+            self.update_image(self.current_frame)
 
     def mousePressEvent(self, event):
         """Capture the start point of the ROI selection."""
         if event.button() == Qt.LeftButton and not self.drawing_roi:
             pos = event.pos()
-            if pos.x() >= 0 and pos.y() >= 0:  # Ensure within bounds
-                self.start_point = pos
+            label_pos = self.label.mapFromParent(pos)  # Map position relative to QLabel
+
+            if label_pos.x() >= 0 and label_pos.y() >= 0:
+                self.start_point = label_pos
                 self.drawing_roi = True
 
     def mouseMoveEvent(self, event):
         """Update the rectangle as the mouse is dragged."""
-        if self.drawing_roi and event.buttons() == Qt.LeftButton:
+        if event.buttons() == Qt.LeftButton and self.drawing_roi:
             pos = event.pos()
-            if pos.x() >= 0 and pos.y() >= 0:  # Ensure within bounds
-                x1, y1 = self.start_point.x(), self.start_point.y()
-                x2, y2 = pos.x(), pos.y()
-                rect_x = min(x1, x2)
-                rect_y = min(y1, y2)
-                rect_w = abs(x1 - x2)
-                rect_h = abs(y1 - y2)
-                self.roi_rect = QRect(rect_x, rect_y, rect_w, rect_h)  # Update QRect
-                # Update display with rectangle drawn
-                if isinstance(self.current_frame, np.ndarray):
-                    rgb_image = cv2.cvtColor(self.current_frame.copy(), cv2.COLOR_BGR2RGB)
-                    h, w, ch = rgb_image.shape
-                    bytes_per_line = ch * w
-                    qt_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
-                    pixmap = QPixmap.fromImage(qt_image)
+            label_pos = self.label.mapFromParent(pos)  # Map position relative to QLabel
 
-                    painter = QPainter(pixmap)
-                    pen = QPen(Qt.red)
-                    pen.setWidth(2)
-                    painter.setPen(pen)
-                    painter.drawRect(self.roi_rect)  # Draw rectangle on pixmap
-                    painter.end()
+            x1, y1 = min(label_pos.x(), self.start_point.x()), min(label_pos.y(), self.start_point.y())
+            x2, y2 = max(label_pos.x(), self.start_point.x()), max(label_pos.y(), self.start_point.y())
 
-                    self.label.setPixmap(pixmap)
+            rect_x, rect_y, rect_w, rect_h = x1, y1, x2 - x1 + 1, y2 - y1 + 1
+
+            if rect_w > 0 and rect_h > 0:
+                scaled_rect_x = int(rect_x * (self.current_frame.shape[1] / float(self.label.width())))
+                scaled_rect_y = int(rect_y * (self.current_frame.shape[0] / float(self.label.height())))
+                scaled_rect_w = int(rect_w * (self.current_frame.shape[1] / float(self.label.width())))
+                scaled_rect_h = int(rect_h * (self.current_frame.shape[0] / float(self.label.height())))
+
+                self.roi_rect = QRect(scaled_rect_x, scaled_rect_y, scaled_rect_w, scaled_rect_h)
+
+            self.update_image(self.current_frame)
 
     def mouseReleaseEvent(self, event):
         """Finalize the ROI selection."""
         if event.button() == Qt.LeftButton and self.drawing_roi:
-            pos = event.pos()
-            x1, y1 = self.start_point.x(), self.start_point.y()
-            x2, y2 = pos.x(), pos.y()
-            rect_x = min(x1, x2)
-            rect_y = min(y1, y2)
-            rect_w = abs(x1 - x2)
-            rect_h = abs(y1 - y2)
-
-            # Finalize QRect for ROI selection
-            if rect_w > 0 and rect_h > 0:
-                self.roi_rect = QRect(rect_x, rect_y, rect_w, rect_h)
-
-            print(f"ROI Selected: {self.roi_rect}")
             self.drawing_roi = False
+            print(f"ROI Selected: {self.roi_rect}")
+
+    def toggle_capturing(self):
+        """Toggle between starting and stopping the capturing process."""
+        if not self.capturing:
+            self.start_button.setText("Stop Capturing")
+            self.capturing = True
+            self.start_capturing()
+        else:
+            self.start_button.setText("Start Capturing")
+            self.capturing = False
 
     def start_capturing(self):
         """Start capturing frames based on the selected ROI."""
@@ -172,16 +198,18 @@ class MainWindow(QMainWindow):
         frame_count = 0
         image_index = 1
         saved_images = []
+        fps = int(cap.get(cv2.CAP_PROP_FPS))  # Get the video's FPS
+        capture_interval = max(1, fps // self.capture_rate_spinbox.value())  # Calculate frame interval
 
-        while cap.isOpened():
+        while cap.isOpened() and self.capturing:
             ret, frame = cap.read()
             if not ret:
                 break
 
             frame_count += 1
 
-            # Process every second frame (frame_count % 2 == 0)
-            if frame_count % 2 == 0:
+            # Process frames based on the capture interval
+            if frame_count % capture_interval == 0:
                 x1, y1, w, h = (
                     int(self.roi_rect.x()),
                     int(self.roi_rect.y()),
@@ -196,7 +224,7 @@ class MainWindow(QMainWindow):
                 # Combine two consecutive frames into one image (vertically stacked) and save as .jpg
                 if len(saved_images) == 2:
                     combined_image = np.vstack(saved_images)
-                    save_path = f"{image_index}.jpg"
+                    save_path = os.path.join(self.output_folder, f"{image_index}.jpg")
                     cv2.imwrite(save_path, combined_image)
                     print(f"Saved: {save_path}")
                     image_index += 1
@@ -211,6 +239,9 @@ if __name__ == "__main__":
     main_window = MainWindow()
     main_window.show()
     sys.exit(app.exec_())
+
+
+
 
 ```
 ```
