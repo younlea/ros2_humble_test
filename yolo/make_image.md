@@ -7,8 +7,8 @@ import numpy as np
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QFileDialog, QLabel, QVBoxLayout, QPushButton, QWidget
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QRect
+from PyQt5.QtGui import QImage, QPixmap, QPainter, QPen
 
 
 class VideoThread(QThread):
@@ -63,9 +63,13 @@ class MainWindow(QMainWindow):
 
         # Variables
         self.video_thread = None
-        self.roi = None
-        self.frame_count = 0
-        self.image_index = 1
+        self.roi_rect = None  # QRect to store ROI
+        self.start_point = None  # Start point of mouse drag
+        self.end_point = None  # End point of mouse drag
+        self.current_frame = None  # Current frame for display and ROI
+
+        # Mouse interaction flags
+        self.drawing_roi = False
 
     def open_video(self):
         options = QFileDialog.Options()
@@ -81,33 +85,92 @@ class MainWindow(QMainWindow):
             self.video_thread.change_pixmap_signal.connect(self.update_image)
             self.video_thread.start()
             self.capture_button.setEnabled(True)
+
     def update_image(self, frame):
-        if self.roi is None:
-            # ROI 선택
-            cv2.imshow("Select ROI", frame)
-            roi = cv2.selectROI("Select ROI", frame, fromCenter=False, showCrosshair=True)
-            cv2.destroyWindow("Select ROI")
-            if roi[2] > 0 and roi[3] > 0:
-                self.roi = roi
-
-        if self.roi is not None:
-            x, y, w, h = map(int, self.roi)
-            roi_frame = frame[y:y + h, x:x + w]
-
-            # 화면에 ROI 영역 표시
-            rgb_image = cv2.cvtColor(roi_frame, cv2.COLOR_BGR2RGB)
+        """Update the QLabel with the current frame."""
+        if frame is not None:
+            rgb_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             h, w, ch = rgb_image.shape
             bytes_per_line = ch * w
             qt_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
             pixmap = QPixmap.fromImage(qt_image)
+
+            # Draw ROI rectangle if available
+            if self.roi_rect:
+                painter = QPainter(pixmap)
+                pen = QPen(Qt.red)
+                pen.setWidth(2)
+                painter.setPen(pen)
+                painter.drawRect(self.roi_rect)
+                painter.end()
+
             self.label.setPixmap(pixmap)
+            self.current_frame = frame
+
+    def mousePressEvent(self, event):
+        """Capture the start point of the ROI selection."""
+        if event.button() == Qt.LeftButton and not self.drawing_roi:
+            pos = event.pos()
+            if pos.x() >= 0 and pos.y() >= 0:  # Ensure within bounds
+                self.start_point = pos
+                self.drawing_roi = True
+
+    def mouseMoveEvent(self, event):
+        """Update the rectangle as the mouse is dragged."""
+        if self.drawing_roi and event.buttons() == Qt.LeftButton:
+            pos = event.pos()
+            if pos.x() >= 0 and pos.y() >= 0:  # Ensure within bounds
+                x1, y1 = self.start_point.x(), self.start_point.y()
+                x2, y2 = pos.x(), pos.y()
+                rect_x = min(x1, x2)
+                rect_y = min(y1, y2)
+                rect_w = abs(x1 - x2)
+                rect_h = abs(y1 - y2)
+                self.roi_rect = QRect(rect_x, rect_y, rect_w, rect_h)  # Update QRect
+                # Update display with rectangle drawn
+                if isinstance(self.current_frame, np.ndarray):
+                    rgb_image = cv2.cvtColor(self.current_frame.copy(), cv2.COLOR_BGR2RGB)
+                    h, w, ch = rgb_image.shape
+                    bytes_per_line = ch * w
+                    qt_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
+                    pixmap = QPixmap.fromImage(qt_image)
+
+                    painter = QPainter(pixmap)
+                    pen = QPen(Qt.red)
+                    pen.setWidth(2)
+                    painter.setPen(pen)
+                    painter.drawRect(self.roi_rect)  # Draw rectangle on pixmap
+                    painter.end()
+
+                    self.label.setPixmap(pixmap)
+
+    def mouseReleaseEvent(self, event):
+        """Finalize the ROI selection."""
+        if event.button() == Qt.LeftButton and self.drawing_roi:
+            pos = event.pos()
+            x1, y1 = self.start_point.x(), self.start_point.y()
+            x2, y2 = pos.x(), pos.y()
+            rect_x = min(x1, x2)
+            rect_y = min(y1, y2)
+            rect_w = abs(x1 - x2)
+            rect_h = abs(y1 - y2)
+
+            # Finalize QRect for ROI selection
+            if rect_w > 0 and rect_h > 0:
+                self.roi_rect = QRect(rect_x, rect_y, rect_w, rect_h)
+
+            print(f"ROI Selected: {self.roi_rect}")
+            self.drawing_roi = False
 
     def start_capturing(self):
-        if self.video_thread:
-            self.video_thread.stop()
+        """Start capturing frames based on the selected ROI."""
+        if not (self.roi_rect and isinstance(self.current_frame, np.ndarray)):
+            print("No ROI selected or no video loaded.")
+            return
 
-        # AVI 파일 다시 열기
-        cap = cv2.VideoCapture(self.video_thread.video_path)
+        cap = cv2.VideoCapture(self.video_thread.video_path)  # Reopen video file for processing
+        frame_count = 0
+        image_index = 1
         saved_images = []
 
         while cap.isOpened():
@@ -115,21 +178,28 @@ class MainWindow(QMainWindow):
             if not ret:
                 break
 
-            self.frame_count += 1
+            frame_count += 1
 
-            # 2프레임마다 ROI 영역 저장
-            if self.frame_count % 2 == 0 and self.roi is not None:
-                x, y, w, h = map(int, self.roi)
-                roi_frame = frame[y:y + h, x:x + w]
+            # Process every second frame (frame_count % 2 == 0)
+            if frame_count % 2 == 0:
+                x1, y1, w, h = (
+                    int(self.roi_rect.x()),
+                    int(self.roi_rect.y()),
+                    int(self.roi_rect.width()),
+                    int(self.roi_rect.height()),
+                )
+
+                # Extract ROI
+                roi_frame = frame[y1:y1 + h, x1:x1 + w]
                 saved_images.append(roi_frame)
 
-                # 두 프레임을 위아래로 결합하여 저장
+                # Combine two consecutive frames into one image (vertically stacked) and save as .jpg
                 if len(saved_images) == 2:
                     combined_image = np.vstack(saved_images)
-                    save_path = f"{self.image_index}.jpg"
+                    save_path = f"{image_index}.jpg"
                     cv2.imwrite(save_path, combined_image)
                     print(f"Saved: {save_path}")
-                    self.image_index += 1
+                    image_index += 1
                     saved_images = []
 
         cap.release()
@@ -141,6 +211,7 @@ if __name__ == "__main__":
     main_window = MainWindow()
     main_window.show()
     sys.exit(app.exec_())
+
 ```
 ```
 코드 설명
