@@ -141,97 +141,98 @@ class MainWindow(QMainWindow):
         if isinstance(self.current_frame, np.ndarray):
             self.update_image(self.current_frame)
 
-    def mousePressEvent(self, event):
-        """Capture the start point of the ROI selection."""
-        if event.button() == Qt.LeftButton and not self.drawing_roi:
-            pos = event.pos()
-            label_pos = self.label.mapFromParent(pos)  # Map position relative to QLabel
+   def mousePressEvent(self, event):
+    """Capture the start point of the ROI selection."""
+    if event.button() == Qt.LeftButton and not self.drawing_roi:
+        pos_in_label = event.pos() - self.label.pos()  # Position relative to QLabel
 
-            if label_pos.x() >= 0 and label_pos.y() >= 0:
-                self.start_point = label_pos
-                self.drawing_roi = True
+        if 0 <= pos_in_label.x() <= self.label.width() and 0 <= pos_in_label.y() <= self.label.height():
+            self.start_point = pos_in_label
+            self.drawing_roi = True
 
-    def mouseMoveEvent(self, event):
-        """Update the rectangle as the mouse is dragged."""
-        if event.buttons() == Qt.LeftButton and self.drawing_roi:
-            pos = event.pos()
-            label_pos = self.label.mapFromParent(pos)  # Map position relative to QLabel
+def mouseMoveEvent(self, event):
+    """Update the rectangle as the mouse is dragged."""
+    if event.buttons() == Qt.LeftButton and self.drawing_roi:
+        pos_in_label = event.pos() - self.label.pos()
 
-            x1, y1 = min(label_pos.x(), self.start_point.x()), min(label_pos.y(), self.start_point.y())
-            x2, y2 = max(label_pos.x(), self.start_point.x()), max(label_pos.y(), self.start_point.y())
+        if 0 <= pos_in_label.x() <= self.label.width() and 0 <= pos_in_label.y() <= self.label.height():
+            x1, y1 = min(self.start_point.x(), pos_in_label.x()), min(self.start_point.y(), pos_in_label.y())
+            x2, y2 = max(self.start_point.x(), pos_in_label.x()), max(self.start_point.y(), pos_in_label.y())
 
-            rect_x, rect_y, rect_w, rect_h = x1, y1, x2 - x1 + 1, y2 - y1 + 1
+            # Convert QLabel coordinates to frame coordinates
+            frame_h, frame_w, _ = self.current_frame.shape
+            scale_x = frame_w / self.label.width()
+            scale_y = frame_h / self.label.height()
 
-            if rect_w > 0 and rect_h > 0:
-                scaled_rect_x = int(rect_x * (self.current_frame.shape[1] / float(self.label.width())))
-                scaled_rect_y = int(rect_y * (self.current_frame.shape[0] / float(self.label.height())))
-                scaled_rect_w = int(rect_w * (self.current_frame.shape[1] / float(self.label.width())))
-                scaled_rect_h = int(rect_h * (self.current_frame.shape[0] / float(self.label.height())))
+            rect_x, rect_y = int(x1 * scale_x), int(y1 * scale_y)
+            rect_w, rect_h = int((x2 - x1) * scale_x), int((y2 - y1) * scale_y)
 
-                self.roi_rect = QRect(scaled_rect_x, scaled_rect_y, scaled_rect_w, scaled_rect_h)
-
+            self.roi_rect = QRect(rect_x, rect_y, rect_w, rect_h)
             self.update_image(self.current_frame)
 
-    def mouseReleaseEvent(self, event):
-        """Finalize the ROI selection."""
-        if event.button() == Qt.LeftButton and self.drawing_roi:
-            self.drawing_roi = False
-            print(f"ROI Selected: {self.roi_rect}")
+def mouseReleaseEvent(self, event):
+    """Finalize the ROI selection."""
+    if event.button() == Qt.LeftButton and self.drawing_roi:
+        self.drawing_roi = False
+        print(f"ROI Selected: {self.roi_rect}")
 
-    def toggle_capturing(self):
-        """Toggle between starting and stopping the capturing process."""
-        if not self.capturing:
-            self.start_button.setText("Stop Capturing")
-            self.capturing = True
-            self.start_capturing()
-        else:
-            self.start_button.setText("Start Capturing")
-            self.capturing = False
+def toggle_capturing(self):
+    """Toggle between starting and stopping the capturing process."""
+    if not self.capturing:
+        # Start capturing
+        self.start_button.setText("Stop Capturing")
+        self.capturing = True
+        self.start_capturing()
+    else:
+        # Stop capturing
+        self.start_button.setText("Start Capturing")
+        self.capturing = False
 
-    def start_capturing(self):
-        """Start capturing frames based on the selected ROI."""
-        if not (self.roi_rect and isinstance(self.current_frame, np.ndarray)):
-            print("No ROI selected or no video loaded.")
-            return
 
-        cap = cv2.VideoCapture(self.video_thread.video_path)  # Reopen video file for processing
-        frame_count = 0
-        image_index = 1
-        saved_images = []
-        fps = int(cap.get(cv2.CAP_PROP_FPS))  # Get the video's FPS
-        capture_interval = max(1, fps // self.capture_rate_spinbox.value())  # Calculate frame interval
+def start_capturing(self):
+    """Start capturing frames based on the selected ROI."""
+    if not (self.roi_rect and isinstance(self.current_frame, np.ndarray)):
+        print("No ROI selected or no video loaded.")
+        return
 
-        while cap.isOpened() and self.capturing:
-            ret, frame = cap.read()
-            if not ret:
-                break
+    cap = cv2.VideoCapture(self.video_thread.video_path)  # Reopen video file for processing
+    frame_count = 0
+    image_index = 1
+    saved_images = []
+    fps = int(cap.get(cv2.CAP_PROP_FPS))  # Get the video's FPS
+    capture_interval = max(1, fps // self.capture_rate_spinbox.value())  # Calculate frame interval
 
-            frame_count += 1
+    while cap.isOpened() and self.capturing:
+        ret, frame = cap.read()
+        if not ret:
+            break
 
-            # Process frames based on the capture interval
-            if frame_count % capture_interval == 0:
-                x1, y1, w, h = (
-                    int(self.roi_rect.x()),
-                    int(self.roi_rect.y()),
-                    int(self.roi_rect.width()),
-                    int(self.roi_rect.height()),
-                )
+        frame_count += 1
 
-                # Extract ROI
-                roi_frame = frame[y1:y1 + h, x1:x1 + w]
-                saved_images.append(roi_frame)
+        # Process frames based on the capture interval
+        if frame_count % capture_interval == 0:
+            x1, y1, w, h = (
+                int(self.roi_rect.x()),
+                int(self.roi_rect.y()),
+                int(self.roi_rect.width()),
+                int(self.roi_rect.height()),
+            )
 
-                # Combine two consecutive frames into one image (vertically stacked) and save as .jpg
-                if len(saved_images) == 2:
-                    combined_image = np.vstack(saved_images)
-                    save_path = os.path.join(self.output_folder, f"{image_index}.jpg")
-                    cv2.imwrite(save_path, combined_image)
-                    print(f"Saved: {save_path}")
-                    image_index += 1
-                    saved_images = []
+            # Extract ROI
+            roi_frame = frame[y1:y1 + h, x1:x1 + w]
+            saved_images.append(roi_frame)
 
-        cap.release()
-        print("Capturing completed.")
+            # Combine two consecutive frames into one image (vertically stacked) and save as .jpg
+            if len(saved_images) == 2:
+                combined_image = np.vstack(saved_images)
+                save_path = os.path.join(self.output_folder, f"{image_index}.jpg")
+                cv2.imwrite(save_path, combined_image)
+                print(f"Saved: {save_path}")
+                image_index += 1
+                saved_images = []
+
+    cap.release()
+    print("Capturing completed.")
 
 
 if __name__ == "__main__":
