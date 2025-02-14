@@ -69,7 +69,7 @@ class VideoCaptureApp(QMainWindow):
         self.open_button.clicked.connect(self.open_video)
         control_layout.addWidget(self.open_button)
         
-        self.fps_label = QLabel("Frames per second:")
+        self.fps_label = QLabel("Captures per second:")
         control_layout.addWidget(self.fps_label)
         
         self.capture_rate_spinbox = QSpinBox()
@@ -217,7 +217,7 @@ class VideoCaptureApp(QMainWindow):
             # 영상 재생 타이머 시작 (30ms마다 업데이트)
             self.playback_timer.start(30)
             # 캡처 타이머 시작 (사용자 입력에 따라 초당 캡처 수)
-            interval = int(1000 / self.capture_rate_spinbox.value())
+            interval = int(60000 / self.capture_rate_spinbox.value())
             self.capture_timer.start(interval)
             self.capturing = True
         else:
