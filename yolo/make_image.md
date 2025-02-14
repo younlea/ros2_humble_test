@@ -23,6 +23,9 @@ from PyQt5.QtGui import QPixmap, QImage
 class VideoCaptureApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        # 기존 변수 선언 부분 위에 추가
+        self.capture_buffer = []  # 캡처된 ROI 이미지를 임시 저장할 리스트
+
         self.setWindowTitle("Video ROI Capture")
         self.setGeometry(100, 100, 800, 600)
         
@@ -226,13 +229,11 @@ class VideoCaptureApp(QMainWindow):
             self.capture_timer.stop()
             self.start_button.setText("Start Capture")
             self.capturing = False
-    
+
     def capture_frame(self):
-        # 캡처 타이머에 의해 호출됨: 현재 프레임에서 ROI 영역 부분을 잘라 파일로 저장
         if self.current_frame is not None and self.roi:
             x, y, w, h = self.roi
             frame_h, frame_w = self.current_frame.shape[:2]
-            # ROI가 영상 경계를 벗어나지 않도록 조정
             x = max(0, min(x, frame_w - 1))
             y = max(0, min(y, frame_h - 1))
             if x + w > frame_w:
@@ -240,10 +241,18 @@ class VideoCaptureApp(QMainWindow):
             if y + h > frame_h:
                 h = frame_h - y
             roi_frame = self.current_frame[y:y+h, x:x+w]
-            filename = os.path.join(self.capture_folder, f"{self.capture_count:04d}.jpg")
-            cv2.imwrite(filename, roi_frame)
-            print("Saved:", filename)
-            self.capture_count += 1
+    
+            # 버퍼에 추가
+            self.capture_buffer.append(roi_frame)
+            
+            # 버퍼에 2장 모이면 위아래로 결합해서 저장
+            if len(self.capture_buffer) == 2:
+                merged_image = cv2.vconcat(self.capture_buffer)
+                filename = os.path.join(self.capture_folder, f"{self.capture_count:04d}.jpg")
+                cv2.imwrite(filename, merged_image)
+                print("Saved:", filename)
+                self.capture_count += 1
+                self.capture_buffer = []  # 버퍼 초기화
     
     def closeEvent(self, event):
         if self.cap:
