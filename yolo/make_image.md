@@ -263,29 +263,32 @@ class VideoCaptureApp(QMainWindow):
             self.cap.release()
         event.accept()
 
-def quick_save(self):
-    # ROI가 선택되어 있고, cap이 유효한지 확인
-    if not self.cap or self.current_frame is None or self.roi is None:
-        print("먼저 영상과 ROI 영역을 선택하세요.")
-        return
-
-    # 기존 capture_buffer 초기화 및 캡처 간격(분당 캡처 수 기준) 계산
-    self.capture_buffer = []
-    interval = int(60000 / self.capture_rate_spinbox.value())  # 분당 설정을 사용 (ms)
-    last_capture_time = -1
-
-    # 현재 영상 위치부터 영상 끝까지 반복 처리
-    while True:
-        ret, frame = self.cap.read()
-        if not ret:
-            break
-
-        self.current_frame = frame.copy()
-        current_time = self.cap.get(cv2.CAP_PROP_POS_MSEC)
-        if last_capture_time < 0 or (current_time - last_capture_time) >= interval:
+    def quick_save(self):
+        # 영상과 ROI 영역이 선택되어야 진행
+        if not self.cap or self.current_frame is None or self.roi is None:
+            print("먼저 영상과 ROI 영역을 선택하세요.")
+            return
+    
+        self.capture_buffer = []  # 기존 캡처 버퍼 초기화
+        fps = self.cap.get(cv2.CAP_PROP_FPS)
+        # 분당 캡처 수 설정(분당 캡처 수에 따라 건너뛰어야 할 프레임 수 계산)
+        capture_interval_frames = int(round(fps * (60 / self.capture_rate_spinbox.value())))
+        
+        current_frame_idx = int(self.cap.get(cv2.CAP_PROP_POS_FRAMES))
+        
+        # quick_save에서는 GUI 업데이트 없이 빠르게 프레임 점프로 캡처 진행
+        while True:
+            next_frame_idx = current_frame_idx + capture_interval_frames
+            self.cap.set(cv2.CAP_PROP_POS_FRAMES, next_frame_idx)
+            ret, frame = self.cap.read()
+            if not ret:
+                break  # 영상 끝
+            
+            current_frame_idx = next_frame_idx
+            self.current_frame = frame.copy()
+            
             x, y, w, h = self.roi
             frame_h, frame_w = frame.shape[:2]
-            # ROI가 영상 경계 내에 있도록 조정
             x = max(0, min(x, frame_w - 1))
             y = max(0, min(y, frame_h - 1))
             if x + w > frame_w:
@@ -294,7 +297,6 @@ def quick_save(self):
                 h = frame_h - y
             roi_frame = frame[y:y+h, x:x+w]
             self.capture_buffer.append(roi_frame)
-            # 캡처 이미지 2장이 모이면 위아래로 결합한 후 저장
             if len(self.capture_buffer) == 2:
                 merged_image = cv2.vconcat(self.capture_buffer)
                 filename = os.path.join(self.capture_folder, f"{self.capture_count:04d}.jpg")
@@ -302,16 +304,15 @@ def quick_save(self):
                 print("Quick Saved:", filename)
                 self.capture_count += 1
                 self.capture_buffer = []
-            last_capture_time = current_time
+        
+        if len(self.capture_buffer) == 1:
+            merged_image = self.capture_buffer[0]
+            filename = os.path.join(self.capture_folder, f"{self.capture_count:04d}_single.jpg")
+            cv2.imwrite(filename, merged_image)
+            print("Quick Saved (single):", filename)
+            self.capture_count += 1
+            self.capture_buffer = []
 
-    # 만약 버퍼에 1장의 이미지만 남았다면 별도로 저장 (옵션)
-    if len(self.capture_buffer) == 1:
-        merged_image = self.capture_buffer[0]
-        filename = os.path.join(self.capture_folder, f"{self.capture_count:04d}_single.jpg")
-        cv2.imwrite(filename, merged_image)
-        print("Quick Saved (single):", filename)
-        self.capture_count += 1
-        self.capture_buffer = []
 
 
 
