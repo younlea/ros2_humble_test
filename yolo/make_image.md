@@ -338,3 +338,66 @@ pip install opencv-python
 
 ---
 Perplexity로부터의 답변: pplx.ai/share
+
+
+---
+좋은 질문입니다! 업스케일링을 하면 이미지의 크기는 커지지만, **실제 해상도가 높아지는 것은 아닙니다.** 업스케일링은 기존 픽셀 데이터를 보간(interpolation)하여 더 큰 크기로 확대하는 방식이므로, 원본 데이터에 없는 디테일을 생성할 수는 없습니다. 결과적으로 해상도는 높아지지 않고, 단지 이미지의 크기만 커질 뿐입니다.
+
+### 문제의 원인: 초기 파일 열 때 이미지 크기 설정
+말씀하신 대로, **초기에 파일을 열 때 이미지 크기를 잘못 처리했거나 압축된 상태로 저장했을 가능성**도 있습니다. OpenCV에서 이미지를 처리할 때, 기본적으로 원본 해상도를 유지하지만, 특정 상황에서는 이미지가 축소되거나 압축 설정이 잘못될 수 있습니다.
+
+따라서 이 문제를 해결하려면 다음 두 가지를 확인해야 합니다:
+
+---
+
+### 1. **원본 프레임 크기 확인**
+`cv2.VideoCapture`를 사용하여 영상을 열었을 때, 실제로 읽어온 프레임이 원본 해상도(1920x1080)인지 확인해야 합니다. 이를 위해 다음 코드를 추가하여 디버깅합니다:
+
+```python
+def open_video(self):
+    file_path, _ = QFileDialog.getOpenFileName(
+        self, "Open Video File", "", "Video Files (*.avi *.mp4 *.mov)")
+    if file_path:
+        self.video_path = file_path
+        self.cap = cv2.VideoCapture(file_path)
+        self.original_size = (
+            int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        )
+        print(f"Original video resolution: {self.original_size}")  # 원본 해상도 출력
+```
+
+위 코드를 통해 `self.original_size` 값을 확인하세요. 만약 `self.original_size`가 1920x1080이 아니라 작게 나오는 경우, 영상 파일 자체가 축소된 상태로 저장되어 있거나 OpenCV에서 잘못 읽어왔을 가능성이 있습니다.
+
+---
+
+### 2. **저장 시 압축 품질 확인**
+OpenCV의 `cv2.imwrite` 함수는 기본적으로 JPEG 이미지를 저장할 때 품질(압축률)을 설정할 수 있습니다. 기본 설정은 품질이 낮게 설정되어 있을 수 있으므로, 저장 시 품질 옵션을 명시적으로 설정해야 합니다.
+
+아래와 같이 `cv2.imwrite`에 추가 옵션을 전달하여 JPEG 품질을 높일 수 있습니다:
+
+```python
+filename = os.path.join(self.capture_folder, f"{self.capture_count:04d}.jpg")
+cv2.imwrite(filename, merged_image, [cv2.IMWRITE_JPEG_QUALITY, 100])  # 품질 100으로 설정
+```
+
+여기서 `IMWRITE_JPEG_QUALITY` 값은 0~100 사이의 정수로 설정하며, 값이 클수록 품질이 높고 파일 크기도 커집니다. 기본값은 약 95 정도이며, 필요에 따라 100으로 설정하면 가장 높은 품질로 저장됩니다.
+
+---
+
+### 최종 점검 및 수정 방향
+1. **원본 해상도 확인**: 위에서 설명한 대로 `self.original_size`를 출력하여 OpenCV가 올바른 해상도로 영상을 읽어오는지 확인합니다.
+    - 만약 해상도가 작게 나왔다면 OpenCV 대신 다른 라이브러리(예: FFmpeg)를 사용하거나 영상 파일 자체를 점검해야 합니다.
+2. **저장 시 압축률 조정**: `cv2.imwrite`에 `IMWRITE_JPEG_QUALITY` 옵션을 추가하여 저장 품질을 높입니다.
+3. **업스케일링 여부 판단**: 원본 해상도가 제대로 유지되고 있다면 업스케일링은 필요하지 않습니다. 그러나 원본 영상 자체가 작은 경우에는 업스케일링이 필요할 수 있습니다.
+
+---
+
+### 결론
+- 만약 원본 영상이 제대로 읽히고 있다면, 문제는 **저장 시 압축률** 때문일 가능성이 높습니다. 이 경우 `cv2.imwrite`의 `IMWRITE_JPEG_QUALITY` 옵션으로 해결할 수 있습니다.
+- 반대로 OpenCV가 영상을 작게 읽어온다면 이는 OpenCV의 영상 처리 방식이나 영상 파일 자체 문제일 수 있으므로 원본 해상도를 확인하고 필요하면 다른 도구를 사용해 영상을 처리해야 합니다.
+
+위 내용을 바탕으로 문제를 점검하고 수정하면 학습용 데이터로 적합한 고품질 이미지를 얻을 수 있을 것입니다! 😊
+
+출처
+
