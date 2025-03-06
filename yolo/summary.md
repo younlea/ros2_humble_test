@@ -239,7 +239,7 @@ names:               # 클래스 이름 리스트 (CVAT에서 정의한 클래�
  
 4. 학습 명령어 실행:
    ```bash
-   python3 train.py --img 640 --batch 16 --epochs 50 --data data/data.yaml --weights yolov5s.py --name custom_model
+   python3 train.py --img 640 --batch 16 --epochs 50 --data data/data.yaml --weights yolov5s.pt --name custom_model
    ```
 
 
