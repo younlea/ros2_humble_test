@@ -172,6 +172,17 @@ dataset/
 -----
 
 ## **4. `data.yaml` 파일 작성**
+dataset폴더와 같은 위치에 data.yaml file생성    
+```
+data.yaml
+dataset/
+  ├── images/
+  │   ├── train/      # 학습용 이미지
+  │   ├── val/        # 검증용 이미지
+  └── labels/
+      ├── train/      # 학습용 라벨 (.txt)
+      ├── val/        # 검증용 라벨 (.txt)
+```
 
 YOLO 모델에서 사용할 수 있도록 설정 파일(`data.yaml`)을 작성합니다:
 ```yaml
