@@ -103,7 +103,9 @@ dataset/
 ---
 
 -----
+
 ### **Data set 분할 하기(train과 val 로 7:3으로 분할 카피) **
+일단 images 와 labels폴더에 파일들을 모두 카피하고 dataset폴더에 devide.sh파일을 만들어서 7:3으로 나눕니다.    
 
 1. **Prepare the directory structure**:
    - Ensure you have the following directories:
