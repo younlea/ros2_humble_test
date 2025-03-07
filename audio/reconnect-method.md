@@ -22,6 +22,10 @@ if __name__ == "__main__":
 1. **블루투스 MAC 주소 확인**: 스피커의 MAC 주소를 알아내기 위해 `bluetoothctl` 명령어를 사용하여 페어링된 장치 목록을 확인합니다.
    ```bash
    bluetoothctl devices
+
+   1ho : Device F4:4E:FC:6E:77:9C Soundcore 3
+   2ho : Device F4:4E:FC:AC:40:CE Soundcore 3
+
    ```
 2. **자동 실행 설정**: 위 코드를 시스템 부팅 시 실행되도록 설정하면, PC가 켜질 때 자동으로 블루투스 스피커에 연결됩니다.
 
