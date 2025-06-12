@@ -12,6 +12,7 @@
 ⸻
 
 📌 전체 코드 (최종 버전)
+```python
 
 import cv2
 import numpy as np
@@ -215,7 +216,7 @@ while True:
         debug_mode = False
         message = '디버깅 중단'
         mode = None
-
+```
 
 ⸻
 
