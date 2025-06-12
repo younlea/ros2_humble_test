@@ -35,6 +35,7 @@ scale = 1.0
 debug_mode = False
 debug_index = 0
 message = ''
+waiting_next = False  # 핵심 추가!
 
 # --- Color Ranges (HSV) ---
 color_ranges = {
@@ -56,7 +57,6 @@ buttons = {
     'Stop': (button_margin*7 + button_width*6, button_margin, button_width, button_height)
 }
 
-# --- Button -> Mode Mapping ---
 button_mode_map = {
     'ROI 1': 'roi1',
     'ROI 2': 'roi2',
@@ -67,7 +67,6 @@ button_mode_map = {
     'Stop': 'stop'
 }
 
-# --- Mouse Callback ---
 def draw_rectangle(event, x, y, flags, param):
     global ix, iy, roi1, roi2, ref_box
     global roi1_selected, roi2_selected, ref_box_selected, mode
@@ -94,7 +93,7 @@ def get_button(x, y):
     return None
 
 def mouse_callback(event, x, y, flags, param):
-    global mode, debug_mode
+    global mode
     if event == cv2.EVENT_LBUTTONDOWN:
         btn = get_button(x, y)
         if btn:
@@ -105,7 +104,6 @@ def mouse_callback(event, x, y, flags, param):
     elif event == cv2.EVENT_LBUTTONUP:
         draw_rectangle(event, x, y, flags, param)
 
-# --- Color-based Box Detection ---
 def check_boxes(img, roi, ref_area, min_ratio, max_ratio, draw=False):
     x, y, w, h = roi
     roi_img = img[y:y+h, x:x+w]
@@ -125,13 +123,17 @@ def check_boxes(img, roi, ref_area, min_ratio, max_ratio, draw=False):
         box_area = w0 * h0
         if draw:
             abs_x0, abs_y0 = x + x0, y + y0
-            cv2.rectangle(img, (abs_x0, abs_y0), (abs_x0+w0, abs_y0+h0), (0,255,255), 2)
-            cv2.putText(img, f"{box_area:.0f}", (abs_x0, abs_y0-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,255), 1)
-        if box_area > ref_area * max_ratio or box_area < ref_area * min_ratio:
-            found = True
+            color = (0, 255, 0)
+            if box_area > ref_area * max_ratio or box_area < ref_area * min_ratio:
+                color = (0, 0, 255)
+                found = True
+            cv2.rectangle(img, (abs_x0, abs_y0), (abs_x0+w0, abs_y0+h0), color, 2)
+            cv2.putText(img, f"{box_area:.0f}", (abs_x0, abs_y0-5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+        else:
+            if box_area > ref_area * max_ratio or box_area < ref_area * min_ratio:
+                found = True
     return found
 
-# --- Draw UI ---
 def draw_buttons(img):
     for name, (x, y, w, h) in buttons.items():
         cv2.rectangle(img, (x, y), (x+w, y+h), (180, 180, 180), -1)
@@ -153,7 +155,7 @@ def show_message(img, text):
     cv2.rectangle(img, (10, img.shape[0]-50), (700, img.shape[0]-10), (255,255,255), -1)
     cv2.putText(img, text, (20, img.shape[0]-20), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0,0,0), 2)
 
-# --- Main Start ---
+# Main Entry
 if len(image_files) == 0:
     print('No image files found.')
     exit()
@@ -179,43 +181,6 @@ while True:
     if key == 27:
         break
 
-    # 디버깅 모드 진입
-    if mode == 'debug':
-        if not (roi1_selected and roi2_selected and ref_box_selected):
-            message = 'Please select all ROIs first.'
-            mode = None
-            continue
-        debug_mode, debug_index = True, 0
-        mode = None
-
-    # 디버깅 모드 동작
-    if debug_mode:
-        if debug_index >= len(image_files):
-            message = 'Debug finished.'
-            debug_mode = False
-            continue
-
-        img = cv2.imread(image_files[debug_index])
-        ref_area = ref_box[2] * ref_box[3]
-        for roi in [roi1, roi2]:
-            check_boxes(img, roi, ref_area, min_ratio, max_ratio, draw=True)
-        debug_show = cv2.resize(img, (clone.shape[1], clone.shape[0]))
-        draw_buttons(debug_show)
-        show_message(debug_show, f'DEBUG [{debug_index+1}/{len(image_files)}]')
-        cv2.imshow('Image', debug_show)
-
-        # 다음 이미지는 next 버튼으로 넘긴다.
-        if mode == 'next':
-            debug_index += 1
-            mode = None
-        elif mode == 'stop':
-            debug_mode = False
-            message = 'Debug stopped.'
-            mode = None
-
-        continue  # 디버깅 모드에서는 아래 일반 루프 스킵
-
-    # 일반 Start 모드
     if mode == 'start':
         if not (roi1_selected and roi2_selected and ref_box_selected):
             message = 'Please select all ROIs first.'
@@ -235,8 +200,41 @@ while True:
                 shutil.copy(img_path, output_folder)
                 count += 1
         message = f'Filtering done! {count} images copied.'
-        print(message)
         mode = None
+
+    elif mode == 'debug':
+        if not (roi1_selected and roi2_selected and ref_box_selected):
+            message = 'Please select all ROIs first.'
+            mode = None
+            continue
+        debug_mode = True
+        debug_index = 0
+        waiting_next = True
+        message = f'Debug started. Press Next.'
+        mode = None
+
+    elif mode == 'next':
+        if debug_mode and debug_index < len(image_files):
+            img = cv2.imread(image_files[debug_index])
+            ref_area = ref_box[2] * ref_box[3]
+            for roi in [roi1, roi2]:
+                check_boxes(img, roi, ref_area, min_ratio, max_ratio, draw=True)
+            show = cv2.resize(img, (clone.shape[1], clone.shape[0]))
+            draw_buttons(show)
+            show_message(show, f"DEBUG [{debug_index+1}/{len(image_files)}]")
+            cv2.imshow('Image', show)
+            debug_index += 1
+        else:
+            message = "Debug finished."
+            debug_mode = False
+        mode = None
+
+    elif mode == 'stop':
+        debug_mode = False
+        message = "Debug stopped."
+        mode = None
+
+cv2.destroyAllWindows()
 ```
 ⸻
 
