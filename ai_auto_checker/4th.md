@@ -179,6 +179,43 @@ while True:
     if key == 27:
         break
 
+    # 디버깅 모드 진입
+    if mode == 'debug':
+        if not (roi1_selected and roi2_selected and ref_box_selected):
+            message = 'Please select all ROIs first.'
+            mode = None
+            continue
+        debug_mode, debug_index = True, 0
+        mode = None
+
+    # 디버깅 모드 동작
+    if debug_mode:
+        if debug_index >= len(image_files):
+            message = 'Debug finished.'
+            debug_mode = False
+            continue
+
+        img = cv2.imread(image_files[debug_index])
+        ref_area = ref_box[2] * ref_box[3]
+        for roi in [roi1, roi2]:
+            check_boxes(img, roi, ref_area, min_ratio, max_ratio, draw=True)
+        debug_show = cv2.resize(img, (clone.shape[1], clone.shape[0]))
+        draw_buttons(debug_show)
+        show_message(debug_show, f'DEBUG [{debug_index+1}/{len(image_files)}]')
+        cv2.imshow('Image', debug_show)
+
+        # 다음 이미지는 next 버튼으로 넘긴다.
+        if mode == 'next':
+            debug_index += 1
+            mode = None
+        elif mode == 'stop':
+            debug_mode = False
+            message = 'Debug stopped.'
+            mode = None
+
+        continue  # 디버깅 모드에서는 아래 일반 루프 스킵
+
+    # 일반 Start 모드
     if mode == 'start':
         if not (roi1_selected and roi2_selected and ref_box_selected):
             message = 'Please select all ROIs first.'
@@ -200,38 +237,6 @@ while True:
         message = f'Filtering done! {count} images copied.'
         print(message)
         mode = None
-
-    elif mode == 'debug':
-        if not (roi1_selected and roi2_selected and ref_box_selected):
-            message = 'Please select all ROIs first.'
-            mode = None
-            continue
-        debug_mode, debug_index = True, 0
-        mode = None
-
-    elif mode == 'next' and debug_mode:
-        if debug_index >= len(image_files):
-            message = 'Debug finished.'
-            debug_mode = False
-            mode = None
-            continue
-
-        img = cv2.imread(image_files[debug_index])
-        ref_area = ref_box[2] * ref_box[3]
-        for roi in [roi1, roi2]:
-            check_boxes(img, roi, ref_area, min_ratio, max_ratio, draw=True)
-        debug_show = cv2.resize(img, (clone.shape[1], clone.shape[0]))
-        draw_buttons(debug_show)
-        show_message(debug_show, f'DEBUG [{debug_index+1}/{len(image_files)}]')
-        cv2.imshow('Image', debug_show)
-        debug_index += 1
-        mode = None
-
-    elif mode == 'stop':
-        debug_mode = False
-        message = 'Debug stopped.'
-        mode = None
-
 ```
 ⸻
 
