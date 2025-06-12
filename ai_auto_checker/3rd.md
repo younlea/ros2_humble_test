@@ -79,12 +79,24 @@ def get_button(x, y):
             return name
     return None
 
+# --- 버튼 -> 모드 매핑 ---
+button_mode_map = {
+    'ROI 1': 'roi1',
+    'ROI 2': 'roi2',
+    'Reference Box': 'ref_box',
+    'Start': 'start',
+    'Debug': 'debug',
+    'Next': 'next',
+    'Stop': 'stop'
+}
+
+# --- 마우스 콜백 ---
 def mouse_callback(event, x, y, flags, param):
     global mode, debug_mode
     if event == cv2.EVENT_LBUTTONDOWN:
         btn = get_button(x, y)
         if btn:
-            mode = btn.lower()
+            mode = button_mode_map[btn]  # <-- 여기!!
         else:
             draw_rectangle(event, x, y, flags, param)
     elif event == cv2.EVENT_LBUTTONUP:
