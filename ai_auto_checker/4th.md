@@ -213,21 +213,32 @@ while True:
         message = f'Debug started. Press Next.'
         mode = None
 
-    elif mode == 'next':
-        if debug_mode and debug_index < len(image_files):
-            img = cv2.imread(image_files[debug_index])
-            ref_area = ref_box[2] * ref_box[3]
-            for roi in [roi1, roi2]:
-                check_boxes(img, roi, ref_area, min_ratio, max_ratio, draw=True)
-            show = cv2.resize(img, (clone.shape[1], clone.shape[0]))
-            draw_buttons(show)
-            show_message(show, f"DEBUG [{debug_index+1}/{len(image_files)}]")
-            cv2.imshow('Image', show)
-            debug_index += 1
-        else:
-            message = "Debug finished."
-            debug_mode = False
-        mode = None
+	elif mode == 'next':
+    if debug_mode and debug_index < len(image_files):
+        img_path = image_files[debug_index]
+        img = cv2.imread(img_path)
+        ref_area = ref_box[2] * ref_box[3]
+        found_any = False
+
+        for roi in [roi1, roi2]:
+            result = check_boxes(img, roi, ref_area, min_ratio, max_ratio, draw=True)
+            if result:
+                found_any = True
+
+        show = cv2.resize(img, (clone.shape[1], clone.shape[0]))
+        draw_buttons(show)
+        file_display = os.path.basename(img_path)
+        show_message(show, f"DEBUG [{debug_index+1}/{len(image_files)}]: {file_display}")
+        cv2.imshow('Image', show)
+
+        print(f"Checked file: {file_display}  --> {'Boxes found' if found_any else 'No boxes found'}")
+
+        debug_index += 1
+    else:
+        message = "Debug finished."
+        debug_mode = False
+    mode = None
+
 
     elif mode == 'stop':
         debug_mode = False
