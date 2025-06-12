@@ -13,7 +13,7 @@
 ⸻
 
 📌 전체 리팩토링 최종 코드:
-
+```python
 import cv2
 import numpy as np
 import os
@@ -232,7 +232,7 @@ while True:
         message = 'Debug stopped.'
         mode = None
 
-
+```
 ⸻
 
 🔧 핵심 수정 요약
