@@ -1,5 +1,218 @@
 우분투에서 동작하는 Python 프로그램을 만들어드리겠습니다. 이 프로그램은 이미지에서 색깔 있는 박스들을 감지하고, 해당 위치에 새로운 박스를 그려주며 좌표를 출력합니다.​​​​​​​​​​​​​​​​
 
+
+
+
+```python
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+
+def detect_and_draw_boxes(image_path, output_path='result_with_boxes.jpg'):
+    """
+    이미지에서 색상별 속이 빈 박스를 검출하고 결과를 그려서 파일로 저장
+    """
+    # 이미지 읽기
+    image = cv2.imread(image_path)
+    if image is None:
+        print("이미지를 불러올 수 없습니다. 경로를 확인하세요.")
+        return None, None, []
+
+    # 원본 이미지 복사 (결과 그리기용)
+    result_image = image.copy()
+    hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+    # 포괄적인 색상 범위 정의
+    color_ranges = {
+        'deep_red': [(0, 100, 50), (8, 255, 255)],
+        'bright_red': [(9, 150, 100), (15, 255, 255)],
+        'crimson': [(165, 80, 80), (175, 255, 255)],
+        'maroon': [(176, 100, 30), (180, 255, 150)],
+        'orange_red': [(16, 100, 100), (20, 255, 255)],
+        'orange': [(21, 120, 120), (25, 255, 255)],
+        'dark_orange': [(26, 150, 80), (30, 255, 200)],
+        'yellow_orange': [(31, 100, 100), (35, 255, 255)],
+        'yellow': [(36, 120, 120), (40, 255, 255)],
+        'gold': [(41, 100, 150), (45, 255, 255)],
+        'yellow_green': [(46, 80, 80), (55, 255, 255)],
+        'lime': [(56, 100, 100), (65, 255, 255)],
+        'light_green': [(66, 80, 80), (75, 255, 255)],
+        'green': [(76, 100, 50), (85, 255, 255)],
+        'forest_green': [(86, 120, 40), (90, 255, 200)],
+        'spring_green': [(91, 80, 80), (95, 255, 255)],
+        'cyan_green': [(96, 100, 100), (100, 255, 255)],
+        'turquoise': [(101, 80, 80), (105, 255, 255)],
+        'cyan': [(106, 100, 100), (115, 255, 255)],
+        'aqua': [(116, 80, 120), (120, 255, 255)],
+        'light_blue': [(121, 60, 100), (130, 255, 255)],
+        'sky_blue': [(131, 80, 120), (135, 255, 255)],
+        'blue': [(136, 100, 100), (145, 255, 255)],
+        'royal_blue': [(146, 120, 80), (150, 255, 255)],
+        'navy_blue': [(151, 100, 50), (160, 255, 200)],
+        'indigo': [(161, 80, 60), (165, 255, 180)],
+        'purple': [(126, 80, 80), (135, 255, 255)],
+        'violet': [(136, 100, 100), (145, 255, 255)],
+        'magenta': [(146, 120, 120), (155, 255, 255)],
+        'pink_purple': [(156, 80, 100), (165, 255, 255)],
+        'pink': [(166, 50, 150), (180, 255, 255)],
+        'hot_pink': [(0, 60, 200), (10, 255, 255)],
+        'brown': [(10, 100, 20), (20, 255, 100)],
+        'tan': [(15, 50, 100), (25, 150, 200)],
+        'light_gray': [(0, 0, 150), (180, 30, 220)],
+        'gray': [(0, 0, 80), (180, 30, 150)],
+        'dark_gray': [(0, 0, 40), (180, 30, 80)]
+    }
+
+    # 색상별 BGR 값 매핑 (그리기용)
+    color_map = {
+        'deep_red': (0, 0, 255), 'bright_red': (0, 50, 255), 'crimson': (60, 20, 220), 'maroon': (0, 0, 128),
+        'orange_red': (0, 69, 255), 'orange': (0, 165, 255), 'dark_orange': (0, 140, 255),
+        'yellow_orange': (0, 215, 255), 'yellow': (0, 255, 255), 'gold': (0, 215, 255),
+        'yellow_green': (50, 205, 50), 'lime': (0, 255, 0), 'light_green': (144, 238, 144), 
+        'green': (0, 128, 0), 'forest_green': (34, 139, 34),
+        'spring_green': (0, 255, 127), 'cyan_green': (127, 255, 212), 'turquoise': (208, 224, 64),
+        'cyan': (255, 255, 0), 'aqua': (255, 255, 127),
+        'light_blue': (255, 182, 193), 'sky_blue': (235, 206, 135), 'blue': (255, 0, 0), 
+        'royal_blue': (225, 105, 65), 'navy_blue': (128, 0, 0), 'indigo': (130, 0, 75),
+        'purple': (128, 0, 128), 'violet': (238, 130, 238), 'magenta': (255, 0, 255), 
+        'pink_purple': (147, 20, 255), 'pink': (203, 192, 255), 'hot_pink': (180, 105, 255),
+        'brown': (42, 42, 165), 'tan': (140, 180, 210),
+        'light_gray': (211, 211, 211), 'gray': (128, 128, 128), 'dark_gray': (64, 64, 64)
+    }
+
+    detected_boxes = []
+
+    # 각 색상별로 박스 검출
+    for color, (lower, upper) in color_ranges.items():
+        lower_np = np.array(lower)
+        upper_np = np.array(upper)
+        mask = cv2.inRange(hsv, lower_np, upper_np)
+
+        # 노이즈 제거
+        kernel = np.ones((3,3), np.uint8)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
+        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
+
+        # 윤곽선 검출
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area < 100:  # 너무 작은 영역 제외
+                continue
+
+            # 다각형 근사
+            epsilon = 0.02 * cv2.arcLength(cnt, True)
+            approx = cv2.approxPolyDP(cnt, epsilon, True)
+
+            # 사각형 확인
+            if len(approx) == 4 and cv2.isContourConvex(approx):
+                x, y, w, h = cv2.boundingRect(approx)
+
+                if w < 20 or h < 20:  # 최소 크기 필터링
+                    continue
+
+                # 속이 빈 박스 확인
+                roi = mask[y:y+h, x:x+w]
+                non_zero = cv2.countNonZero(roi)
+                total_area = w * h
+
+                border_pixels = 2 * (w + h - 4) * 3
+                if non_zero < total_area * 0.4 and non_zero > border_pixels * 0.3:
+                    detected_boxes.append({
+                        'color': color,
+                        'position': (x, y, w, h),
+                        'area': total_area,
+                        'fill_ratio': non_zero / total_area
+                    })
+
+    # 중복 제거
+    filtered_boxes = []
+    for box in detected_boxes:
+        x, y, w, h = box['position']
+        is_duplicate = False
+
+        for existing_box in filtered_boxes:
+            ex, ey, ew, eh = existing_box['position']
+            overlap_x = max(0, min(x + w, ex + ew) - max(x, ex))
+            overlap_y = max(0, min(y + h, ey + eh) - max(y, ey))
+            overlap_area = overlap_x * overlap_y
+
+            if overlap_area > 0.8 * min(w * h, ew * eh):
+                is_duplicate = True
+                break
+
+        if not is_duplicate:
+            filtered_boxes.append(box)
+
+    # 검출된 박스들을 이미지에 그리기
+    for i, box in enumerate(filtered_boxes):
+        x, y, w, h = box['position']
+        color_name = box['color']
+        box_color = color_map.get(color_name, (0, 255, 255))
+        
+        # 박스 그리기 (두께 3픽셀)
+        cv2.rectangle(result_image, (x, y), (x + w, y + h), box_color, 3)
+        
+        # 색상 이름과 번호 표시
+        label = f"{i+1}:{color_name}"
+        label_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
+        
+        # 라벨 배경 그리기
+        cv2.rectangle(result_image, (x, y-25), (x + label_size[0] + 10, y), box_color, -1)
+        cv2.putText(result_image, label, (x + 5, y - 8), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+
+    # 결과 이미지 저장
+    cv2.imwrite(output_path, result_image)
+    
+    print(f"총 {len(filtered_boxes)}개의 박스가 검출되었습니다.")
+    for i, box in enumerate(filtered_boxes):
+        x, y, w, h = box['position']
+        print(f"{i+1}. 색상: {box['color']}, 위치: ({x}, {y}), 크기: {w}x{h}, 면적: {box['area']}")
+
+    return image, result_image, filtered_boxes
+
+def display_results(original_image, result_image):
+    """
+    원본 이미지와 결과 이미지를 나란히 표시
+    """
+    plt.figure(figsize=(15, 7))
+    
+    # 원본 이미지
+    plt.subplot(1, 2, 1)
+    plt.imshow(cv2.cvtColor(original_image, cv2.COLOR_BGR2RGB))
+    plt.title('원본 이미지', fontsize=14, fontweight='bold')
+    plt.axis('off')
+    
+    # 결과 이미지
+    plt.subplot(1, 2, 2)
+    plt.imshow(cv2.cvtColor(result_image, cv2.COLOR_BGR2RGB))
+    plt.title('박스 검출 결과', fontsize=14, fontweight='bold')
+    plt.axis('off')
+    
+    plt.tight_layout()
+    plt.show()
+
+# 사용 예시
+if __name__ == "__main__":
+    # 이미지 경로를 실제 경로로 변경하세요
+    image_path = 'your_image.jpg'
+    output_path = 'detected_boxes_result.jpg'
+    
+    # 박스 검출 및 그리기
+    original, result, boxes = detect_and_draw_boxes(image_path, output_path)
+    
+    if original is not None and result is not None:
+        # 결과 표시
+        display_results(original, result)
+        print(f"\n결과 이미지가 '{output_path}'로 저장되었습니다.")
+    else:
+        print("이미지 처리에 실패했습니다.")
+
+
+```
+
 ```python
 #!/usr/bin/env python3
 # 파일: outline_box_color_detector.py
