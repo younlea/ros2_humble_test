@@ -1,5 +1,445 @@
 우분투에서 동작하는 Python 프로그램을 만들어드리겠습니다. 이 프로그램은 이미지에서 색깔 있는 박스들을 감지하고, 해당 위치에 새로운 박스를 그려주며 좌표를 출력합니다.​​​​​​​​​​​​​​​​
 
+
+```python
+#!/usr/bin/env python3
+"""
+이미지에서 컬러 박스를 감지하고 좌표를 출력하는 프로그램 (Version 5)
+Usage: python box_detector.py <image_path>
+"""
+
+import cv2
+import numpy as np
+import argparse
+import sys
+import os
+from collections import defaultdict
+
+class BoxDetector:
+    def __init__(self, min_box_area=100, max_box_area=50000, aspect_ratio_range=(0.1, 10), iou_threshold=0.5):
+        # 박스 감지를 위한 파라미터 (외부에서 설정 가능)
+        self.min_box_area = min_box_area
+        self.max_box_area = max_box_area
+        self.aspect_ratio_range = aspect_ratio_range
+        self.iou_threshold = iou_threshold # 중복 박스 제거를 위한 IoU 임계값
+        
+        print(f"박스 감지 파라미터:")
+        print(f"  - 최소 박스 크기: {self.min_box_area}")
+        print(f"  - 최대 박스 크기: {self.max_box_area}")
+        print(f"  - 가로세로 비율 범위: {self.aspect_ratio_range}")
+        print(f"  - 중복 박스 제거 IoU 임계값: {self.iou_threshold}")
+        
+    def preprocess_image(self, img):
+        """이미지 전처리: 가우시안 블러로 노이즈 제거"""
+        blurred = cv2.GaussianBlur(img, (5, 5), 0) # 블러 강도 조정 (5,5)
+        return blurred
+    
+    def is_valid_box(self, x, y, w, h, contour_area=None):
+        """
+        박스 유효성 검사
+        - 면적, 가로세로 비율, 사각형 형태 여부 (contour_area가 제공된 경우)
+        """
+        area = w * h
+        aspect_ratio = w / h if h > 0 else 0
+        
+        area_valid = self.min_box_area <= area <= self.max_box_area
+        ratio_valid = self.aspect_ratio_range[0] <= aspect_ratio <= self.aspect_ratio_range[1]
+        
+        form_valid = True
+        if contour_area is not None:
+            # 컨투어 면적과 바운딩 박스 면적 비교하여 사각형에 가까운지 확인
+            rect_area = w * h
+            if rect_area > 0:
+                fill_ratio = contour_area / rect_area
+                form_valid = fill_ratio > 0.6 and fill_ratio < 1.4 # 사각형에 가까운 비율 (조정 가능)
+            else:
+                form_valid = False # 면적이 0인 박스는 유효하지 않음
+        
+        return area_valid and ratio_valid and form_valid
+    
+    def detect_boxes_by_edges(self, img):
+        """엣지 기반 박스 감지: 사각형 형태에 더 집중"""
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # 엣지 감지 (Canny 파라미터 조정 가능)
+        edges = cv2.Canny(gray, 70, 200, apertureSize=3) # 엣지 감지 강도 조정
+        
+        # 모폴로지 연산으로 엣지 연결 및 작은 틈 메우기
+        kernel = np.ones((3, 3), np.uint8)
+        edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel, iterations=2) # 반복 횟수 증가
+        edges = cv2.morphologyEx(edges, cv2.MORPH_OPEN, kernel, iterations=1)
+        
+        # 컨투어 찾기
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        boxes = []
+        for contour in contours:
+            # 컨투어를 직사각형으로 근사화 (정확도 향상)
+            # arcLength의 2% 이내 오차로 근사화
+            epsilon = 0.02 * cv2.arcLength(contour, True)
+            approx = cv2.approxPolyDP(contour, epsilon, True)
+            
+            # 4개의 꼭짓점을 가진 도형 (사각형)만 고려
+            if len(approx) == 4:
+                x, y, w, h = cv2.boundingRect(contour)
+                contour_area = cv2.contourArea(contour)
+                
+                # 유효성 검사 (면적, 비율, 사각형 형태)
+                if self.is_valid_box(x, y, w, h, contour_area=contour_area):
+                    boxes.append((x, y, w, h))
+        
+        return boxes
+    
+    def analyze_image_colors(self, img, num_hue_segments=12, saturation_threshold=50, value_threshold=50):
+        """
+        이미지의 주요 색상을 분석하여 동적으로 HSV 색상 범위 생성
+        - num_hue_segments: Hue 스펙트럼을 몇 개의 세그먼트로 나눌지 (예: 12는 각 30도)
+        - saturation_threshold, value_threshold: 낮은 채도/명도의 색상 (회색 계열) 제외
+        """
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        h, w = hsv.shape[:2]
+        
+        # Hue Histogram 생성 (채도와 명도가 충분히 높은 픽셀만 고려)
+        hue_counts = defaultdict(int)
+        for y in range(h):
+            for x in range(w):
+                h_val, s_val, v_val = hsv[y, x]
+                if s_val > saturation_threshold and v_val > value_threshold:
+                    # Hue를 num_hue_segments개로 분류
+                    segment = int(h_val / (180 / num_hue_segments))
+                    hue_counts[segment] += 1
+        
+        dynamic_ranges = []
+        # 각 Hue 세그먼트의 대표 색상으로 범위 생성
+        for segment, count in hue_counts.items():
+            if count > (h * w * 0.001): # 이미지 전체 픽셀의 0.1% 이상 차지하는 색상만 고려
+                base_h = segment * (180 / num_hue_segments)
+                
+                # Hue 범위 설정 (예: +/- 10)
+                hue_range = 10
+                
+                # 빨간색 처리 (0도와 179도 연결)
+                if base_h - hue_range < 0: # 0도 이하로 내려가는 경우
+                    dynamic_ranges.append([(max(0, int(base_h - hue_range)), saturation_threshold, value_threshold), (int(base_h + hue_range), 255, 255)])
+                    dynamic_ranges.append([(int(180 + base_h - hue_range), saturation_threshold, value_threshold), (179, 255, 255)])
+                elif base_h + hue_range > 179: # 179도 이상으로 넘어가는 경우
+                    dynamic_ranges.append([(int(base_h - hue_range), saturation_threshold, value_threshold), (min(179, int(base_h + hue_range)), 255, 255)])
+                    dynamic_ranges.append([(0, saturation_threshold, value_threshold), (int(base_h + hue_range - 180), 255, 255)])
+                else:
+                    dynamic_ranges.append([(int(base_h - hue_range), saturation_threshold, value_threshold), (int(base_h + hue_range), 255, 255)])
+        
+        # 중복 범위 제거 및 병합
+        merged_ranges = []
+        if dynamic_ranges:
+            sorted_ranges = sorted(dynamic_ranges, key=lambda x: x[0][0])
+            
+            # 현재 처리 중인 색상 범위를 리스트로 초기화하여 수정 가능하게 함
+            current_lower_list = list(sorted_ranges[0][0]) 
+            current_upper_list = list(sorted_ranges[0][1])
+            
+            for i in range(1, len(sorted_ranges)):
+                next_lower_tuple, next_upper_tuple = sorted_ranges[i]
+                
+                # 현재 범위의 상한 Hue가 다음 범위의 하한 Hue와 겹치거나 인접하면 병합
+                # 5는 병합을 위한 여유값
+                if current_upper_list[0] >= next_lower_tuple[0] - 5: 
+                    # Hue 범위 병합
+                    current_upper_list[0] = max(current_upper_list[0], next_upper_tuple[0])
+                    
+                    # 채도(Saturation)와 명도(Value) 범위 병합 (하한은 최소값, 상한은 최대값)
+                    current_lower_list[1] = min(current_lower_list[1], next_lower_tuple[1]) # S_min
+                    current_lower_list[2] = min(current_lower_list[2], next_lower_tuple[2]) # V_min
+                    current_upper_list[1] = max(current_upper_list[1], next_upper_tuple[1]) # S_max
+                    current_upper_list[2] = max(current_upper_list[2], next_upper_tuple[2]) # V_max
+                else:
+                    # 겹치지 않으면 현재까지 병합된 범위를 추가하고 새로운 범위 시작
+                    merged_ranges.append((tuple(current_lower_list), tuple(current_upper_list)))
+                    current_lower_list = list(next_lower_tuple)
+                    current_upper_list = list(next_upper_tuple)
+            
+            # 마지막으로 병합된 범위를 추가
+            merged_ranges.append((tuple(current_lower_list), tuple(current_upper_list)))
+
+        return merged_ranges
+    
+    def detect_boxes_by_color(self, img):
+        """HSV 색상 기반 박스 감지 (동적 색상 범위 생성)"""
+        boxes = []
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        
+        # 동적 색상 범위 생성
+        color_ranges = self.analyze_image_colors(img)
+        
+        for lower, upper in color_ranges:
+            # 색상 마스크 생성
+            mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
+            
+            # 노이즈 제거 및 객체 연결
+            kernel = np.ones((3, 3), np.uint8)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=2) # 2회 반복
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2) # 2회 반복
+            
+            # 컨투어 찾기
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            for contour in contours:
+                x, y, w, h = cv2.boundingRect(contour)
+                contour_area = cv2.contourArea(contour)
+                
+                # 박스 형태 검증 (contour_area와 사각형 면적 비교) 및 기타 유효성 검사
+                if self.is_valid_box(x, y, w, h, contour_area=contour_area):
+                    boxes.append((x, y, w, h))
+        
+        return boxes
+    
+    def detect_boxes_by_lab_color(self, img):
+        """LAB 색공간을 이용한 색상 기반 박스 감지 (유사한 색상 구분에 유리)"""
+        boxes = []
+        lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+        
+        # LAB 색공간에서의 색상 범위들 (L, A, B) - 필요에 따라 조정
+        # L (밝기): 0 (검정) ~ 255 (흰색)
+        # A (초록-빨강): 0 (초록) ~ 255 (빨강), 128이 중립
+        # B (파랑-노랑): 0 (파랑) ~ 255 (노랑), 128이 중립
+        lab_color_ranges = [
+            # 예시: 빨간색 계열
+            [(50, 150, 130), (255, 255, 255)], # 밝은 빨강
+            [(30, 130, 120), (200, 255, 170)], # 어두운 빨강
+            
+            # 예시: 초록색 계열
+            [(50, 0, 130), (255, 100, 255)], # 밝은 초록
+            [(30, 0, 120), (200, 110, 170)], # 어두운 초록
+            
+            # 예시: 파란색 계열
+            [(50, 130, 0), (255, 170, 120)], # 밝은 파랑
+            [(30, 120, 0), (200, 150, 110)], # 어두운 파랑
+            
+            # 예시: 노란색 계열
+            [(50, 120, 150), (255, 140, 255)], # 밝은 노랑
+            [(30, 110, 130), (200, 130, 255)], # 어두운 노랑
+
+            # 회색/흰색/검은색 계열 (낮은 A, B 값)
+            [(0, 120, 120), (255, 135, 135)], # 회색
+            [(200, 120, 120), (255, 135, 135)], # 흰색 (밝기 높음)
+            [(0, 120, 120), (50, 135, 135)], # 검은색 (밝기 낮음)
+        ]
+        
+        for lower, upper in lab_color_ranges:
+            mask = cv2.inRange(lab, np.array(lower), np.array(upper))
+            
+            # 노이즈 제거 및 객체 연결
+            kernel = np.ones((3, 3), np.uint8)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel, iterations=1)
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=1)
+            
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            for contour in contours:
+                x, y, w, h = cv2.boundingRect(contour)
+                contour_area = cv2.contourArea(contour)
+                if self.is_valid_box(x, y, w, h, contour_area=contour_area):
+                    boxes.append((x, y, w, h))
+        
+        return boxes
+    
+    def remove_duplicate_boxes(self, boxes):
+        """중복되는 박스 제거 (Non-Maximum Suppression 방식)"""
+        if not boxes:
+            return []
+        
+        # 박스 좌표를 float32로 변환하여 NMS 입력 형식에 맞춤
+        np_boxes = np.array(boxes, dtype=np.float32)
+        x1 = np_boxes[:, 0]
+        y1 = np_boxes[:, 1]
+        x2 = np_boxes[:, 0] + np_boxes[:, 2]
+        y2 = np_boxes[:, 1] + np_boxes[:, 3]
+        
+        # 면적 계산
+        areas = np_boxes[:, 2] * np_boxes[:, 3]
+        
+        # 면적 기준으로 내림차순 정렬
+        order = areas.argsort()[::-1]
+        
+        keep = [] # 최종 선택될 박스의 인덱스
+        while order.size > 0:
+            i = order[0] # 현재 가장 큰 면적의 박스 선택
+            keep.append(i)
+            
+            # 현재 박스와 다른 박스들의 겹치는 영역 계산
+            xx1 = np.maximum(x1[i], x1[order[1:]])
+            yy1 = np.maximum(y1[i], y1[order[1:]])
+            xx2 = np.minimum(x2[i], x2[order[1:]])
+            yy2 = np.minimum(y2[i], y2[order[1:]])
+            
+            w = np.maximum(0.0, xx2 - xx1 + 1)
+            h = np.maximum(0.0, yy2 - yy1 + 1)
+            
+            overlap = w * h
+            
+            # IoU 계산
+            iou = overlap / (areas[i] + areas[order[1:]] - overlap)
+            
+            # IoU 임계값보다 작은 박스들만 남김 (겹치지 않는 박스)
+            inds = np.where(iou <= self.iou_threshold)[0]
+            order = order[inds + 1] # 다음 반복을 위해 인덱스 업데이트
+        
+        final_boxes = [boxes[i] for i in keep]
+        return final_boxes
+    
+    def detect_boxes(self, img_path):
+        """메인 박스 감지 함수"""
+        # 이미지 로드
+        img = cv2.imread(img_path)
+        if img is None:
+            raise ValueError(f"이미지를 로드할 수 없습니다: {img_path}")
+        
+        print(f"이미지 크기: {img.shape[1]}x{img.shape[0]}")
+        
+        # 이미지 전처리
+        processed_img = self.preprocess_image(img)
+        
+        # 다양한 방법으로 박스 감지
+        print("엣지 기반 박스 감지 중 (사각형 형태 집중)...")
+        edge_boxes = self.detect_boxes_by_edges(processed_img)
+        print(f"  엣지 방법으로 {len(edge_boxes)}개 박스 감지")
+        
+        print("HSV 색상 기반 박스 감지 중 (동적 색상 범위)...")
+        hsv_color_boxes = self.detect_boxes_by_color(processed_img)
+        print(f"  HSV 색상 방법으로 {len(hsv_color_boxes)}개 박스 감지")
+        
+        print("LAB 색상 기반 박스 감지 중 (유사색상 구분)...")
+        lab_color_boxes = self.detect_boxes_by_lab_color(processed_img)
+        print(f"  LAB 색상 방법으로 {len(lab_color_boxes)}개 박스 감지")
+        
+        # 모든 박스 합치기
+        all_boxes = edge_boxes + hsv_color_boxes + lab_color_boxes
+        print(f"총 {len(all_boxes)}개 박스 감지 (중복 포함)")
+        
+        # 중복 제거
+        final_boxes = self.remove_duplicate_boxes(all_boxes)
+        print(f"중복 제거 후 {len(final_boxes)}개 박스")
+        
+        return img, final_boxes
+    
+    def draw_boxes_and_save(self, img, boxes, output_path):
+        """박스를 그리고 결과 이미지 저장"""
+        result_img = img.copy()
+        
+        # 다양한 색상 정의 (BGR)
+        colors = [
+            (0, 255, 0),    # 초록
+            (255, 0, 0),    # 파랑
+            (0, 0, 255),    # 빨강
+            (255, 255, 0),  # 청록
+            (255, 0, 255),  # 마젠타
+            (0, 255, 255),  # 노랑
+            (128, 0, 128),  # 보라
+            (255, 165, 0),  # 주황
+            (0, 128, 255),  # 하늘색
+            (255, 192, 203), # 분홍
+            (128, 128, 0),  # 올리브
+            (0, 128, 128),  # 청록
+            (0, 100, 0),    # 진한 초록
+            (100, 0, 0),    # 진한 파랑
+            (0, 0, 100),    # 진한 빨강
+        ]
+        
+        for i, (x, y, w, h) in enumerate(boxes):
+            color = colors[i % len(colors)]
+            
+            # 박스 그리기 (굵기 2)
+            cv2.rectangle(result_img, (x, y), (x + w, y + h), color, 2)
+            
+            # 박스 번호 표시
+            cv2.putText(result_img, f'{i+1}', (x, y-5), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+            
+            # 박스 크기 표시 (선택사항)
+            area = w * h
+            cv2.putText(result_img, f'{w}x{h} ({area})', (x, y+h+15), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+        
+        # 결과 이미지 저장
+        cv2.imwrite(output_path, result_img)
+        return result_img
+
+def main():
+    parser = argparse.ArgumentParser(description='이미지에서 박스를 감지하고 좌표를 출력합니다.')
+    parser.add_argument('image_path', help='입력 이미지 경로')
+    parser.add_argument('--output', '-o', default='output.jpg', help='출력 이미지 파일명 (기본값: output.jpg)')
+    parser.add_argument('--min-area', type=int, default=100, help='최소 박스 크기 (기본값: 100)')
+    parser.add_argument('--max-area', type=int, default=50000, help='최대 박스 크기 (기본값: 50000)')
+    parser.add_argument('--min-ratio', type=float, default=0.2, help='최소 가로세로 비율 (기본값: 0.2)') # 비율 조정
+    parser.add_argument('--max-ratio', type=float, default=5.0, help='최대 가로세로 비율 (기본값: 5.0)')   # 비율 조정
+    parser.add_argument('--iou-threshold', type=float, default=0.3, help='중복 박스 제거 IoU 임계값 (기본값: 0.3)') # IoU 임계값 조정
+    
+    args = parser.parse_args()
+    
+    # 입력 파일 존재 확인
+    if not os.path.exists(args.image_path):
+        print(f"오류: 파일을 찾을 수 없습니다 - {args.image_path}")
+        sys.exit(1)
+    
+    try:
+        # 박스 감지기 초기화 (커스텀 파라미터 적용)
+        detector = BoxDetector(
+            min_box_area=args.min_area,
+            max_box_area=args.max_area,
+            aspect_ratio_range=(args.min_ratio, args.max_ratio),
+            iou_threshold=args.iou_threshold
+        )
+        
+        print(f"\n이미지 분석 시작: {args.image_path}")
+        print("=" * 50)
+        
+        # 박스 감지
+        img, boxes = detector.detect_boxes(args.image_path)
+        
+        if not boxes:
+            print("감지된 박스가 없습니다.")
+            print("파라미터를 조정해보세요:")
+            print("  --min-area 값을 줄이거나")
+            print("  --max-area 값을 늘리거나")
+            print("  --min-ratio/--max-ratio 값을 조정하거나")
+            print("  --iou-threshold 값을 조정해보세요.")
+            return
+        
+        # 결과 출력
+        print("\n" + "=" * 50)
+        print(f"최종 감지된 박스 개수: {len(boxes)}")
+        print("-" * 50)
+        print("박스 좌표 및 정보:")
+        print("형식: 박스번호: (x, y, w, h) - 면적: area (가로x세로)")
+        
+        for i, (x, y, w, h) in enumerate(boxes, 1):
+            area = w * h
+            print(f"박스 {i:2d}: ({x:4d}, {y:4d}, {w:4d}, {h:4d}) - {w}x{h} ({area:6d})")
+        
+        # 박스 그리고 결과 이미지 저장
+        result_img = detector.draw_boxes_and_save(img, boxes, args.output)
+        print(f"\n결과 이미지가 저장되었습니다: {args.output}")
+        
+        # 이미지 표시 (GUI 환경에서만)
+        try:
+            cv2.imshow('Original Image', img)
+            cv2.imshow('Detected Boxes', result_img)
+            print("\n'q' 키를 눌러 종료하세요.")
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+        except cv2.error:
+            print("GUI 환경이 아니어서 이미지를 화면에 표시할 수 없습니다.")
+            print(f"결과 이미지를 확인하세요: {args.output}")
+        
+    except Exception as e:
+        print(f"오류 발생: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+
+
+```
+
 ```python
 #!/usr/bin/env python3
 """
