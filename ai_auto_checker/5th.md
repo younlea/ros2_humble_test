@@ -4,6 +4,437 @@
 ```python
 #!/usr/bin/env python3
 """
+이미지에서 컬러 박스를 감지하고 좌표를 출력하는 프로그램 (Version 4 - 개선된 색상 테이블)
+Usage: python box_detector.py <image_path>
+"""
+
+import cv2
+import numpy as np
+import argparse
+import sys
+import os
+from collections import defaultdict
+
+class BoxDetector:
+    def __init__(self, min_box_area=100, max_box_area=50000, aspect_ratio_range=(0.1, 10)):
+        # 박스 감지를 위한 파라미터 (외부에서 설정 가능)
+        self.min_box_area = min_box_area
+        self.max_box_area = max_box_area
+        self.aspect_ratio_range = aspect_ratio_range
+        
+        print(f"박스 감지 파라미터:")
+        print(f"  - 최소 박스 크기: {self.min_box_area}")
+        print(f"  - 최대 박스 크기: {self.max_box_area}")
+        print(f"  - 가로세로 비율 범위: {self.aspect_ratio_range}")
+        
+    def get_precise_color_ranges(self):
+        """세밀한 색상 테이블 정의"""
+        color_ranges = {
+            # 빨간색 계열 - 더 세분화
+            'red_bright': [(0, 120, 120), (8, 255, 255)],      # 밝은 빨강
+            'red_pure': [(0, 150, 150), (6, 255, 255)],        # 순수 빨강
+            'red_dark': [(0, 100, 80), (10, 200, 180)],        # 어두운 빨강
+            'red_wrap1': [(170, 120, 120), (179, 255, 255)],   # 빨강 (색상환 끝)
+            'red_wrap2': [(175, 150, 150), (179, 255, 255)],   # 진한 빨강 (색상환 끝)
+            
+            # 주황색 계열
+            'orange_bright': [(8, 120, 120), (18, 255, 255)],  # 밝은 주황
+            'orange_pure': [(10, 150, 150), (16, 255, 255)],   # 순수 주황
+            'orange_red': [(5, 100, 100), (12, 255, 255)],     # 빨강 기운 주황
+            'orange_yellow': [(15, 100, 100), (22, 255, 255)], # 노랑 기운 주황
+            
+            # 노란색 계열
+            'yellow_bright': [(18, 120, 120), (28, 255, 255)], # 밝은 노랑
+            'yellow_pure': [(20, 150, 150), (26, 255, 255)],   # 순수 노랑
+            'yellow_gold': [(15, 100, 100), (25, 200, 200)],   # 금색 노랑
+            'yellow_lime': [(25, 120, 120), (35, 255, 255)],   # 라임 노랑
+            
+            # 초록색 계열 - 더 세분화
+            'green_lime': [(28, 120, 120), (45, 255, 255)],    # 라임 초록
+            'green_bright': [(40, 120, 120), (70, 255, 255)],  # 밝은 초록
+            'green_pure': [(50, 150, 150), (65, 255, 255)],    # 순수 초록
+            'green_forest': [(45, 100, 80), (75, 200, 180)],   # 숲 초록
+            'green_dark': [(40, 80, 60), (80, 180, 150)],      # 어두운 초록
+            'green_emerald': [(55, 120, 120), (75, 255, 255)], # 에메랄드 초록
+            
+            # 청록색 계열
+            'cyan_bright': [(75, 120, 120), (95, 255, 255)],   # 밝은 청록
+            'cyan_pure': [(80, 150, 150), (90, 255, 255)],     # 순수 청록
+            'cyan_mint': [(70, 80, 120), (100, 180, 255)],     # 민트색
+            'teal': [(85, 100, 100), (95, 200, 200)],          # 틸색
+            
+            # 파란색 계열 - 더 세분화
+            'blue_sky': [(95, 120, 120), (110, 255, 255)],     # 하늘색
+            'blue_bright': [(100, 120, 120), (125, 255, 255)], # 밝은 파랑
+            'blue_pure': [(110, 150, 150), (120, 255, 255)],   # 순수 파랑
+            'blue_navy': [(105, 100, 80), (130, 200, 180)],    # 네이비 블루
+            'blue_royal': [(115, 120, 120), (125, 255, 255)],  # 로열 블루
+            'blue_dark': [(100, 80, 60), (135, 180, 150)],     # 어두운 파랑
+            
+            # 보라색 계열
+            'purple_blue': [(125, 120, 120), (140, 255, 255)], # 파랑 기운 보라
+            'purple_bright': [(130, 120, 120), (150, 255, 255)], # 밝은 보라
+            'purple_pure': [(135, 150, 150), (145, 255, 255)], # 순수 보라
+            'purple_dark': [(125, 100, 80), (155, 200, 180)],  # 어두운 보라
+            'violet': [(140, 120, 120), (160, 255, 255)],      # 바이올렛
+            
+            # 분홍색/마젠타 계열
+            'pink_bright': [(145, 120, 120), (165, 255, 255)], # 밝은 분홍
+            'pink_hot': [(150, 150, 150), (160, 255, 255)],    # 핫핑크
+            'magenta': [(140, 120, 120), (170, 255, 255)],     # 마젠타
+            'pink_light': [(145, 80, 150), (170, 180, 255)],   # 연한 분홍
+            
+            # 갈색 계열 (낮은 채도)
+            'brown_red': [(0, 50, 50), (15, 150, 180)],        # 적갈색
+            'brown_orange': [(10, 50, 50), (25, 150, 180)],    # 주황갈색
+            'brown_yellow': [(20, 50, 50), (35, 150, 180)],    # 황갈색
+            'brown_dark': [(5, 30, 30), (25, 120, 120)],       # 어두운 갈색
+            
+            # 회색 계열 (매우 낮은 채도)
+            'gray_light': [(0, 0, 150), (179, 30, 220)],       # 밝은 회색
+            'gray_medium': [(0, 0, 100), (179, 30, 180)],      # 중간 회색
+            'gray_dark': [(0, 0, 50), (179, 30, 130)],         # 어두운 회색
+            
+            # 특수 색상들
+            'beige': [(15, 30, 120), (30, 80, 220)],           # 베이지
+            'cream': [(20, 20, 180), (40, 60, 255)],           # 크림색
+            'ivory': [(25, 15, 200), (45, 50, 255)],           # 아이보리
+            'khaki': [(35, 40, 100), (55, 120, 200)],          # 카키색
+        }
+        
+        return color_ranges
+    
+    def preprocess_image(self, img):
+        """이미지 전처리 - 더 정교한 노이즈 제거"""
+        # 가우시안 블러로 노이즈 제거 (더 부드럽게)
+        blurred = cv2.GaussianBlur(img, (5, 5), 0)
+        
+        # 대비 향상 (CLAHE 적용)
+        lab = cv2.cvtColor(blurred, cv2.COLOR_BGR2LAB)
+        l, a, b = cv2.split(lab)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+        l = clahe.apply(l)
+        enhanced = cv2.merge([l, a, b])
+        enhanced = cv2.cvtColor(enhanced, cv2.COLOR_LAB2BGR)
+        
+        return enhanced
+    
+    def is_valid_box(self, x, y, w, h):
+        """박스 유효성 검사 - 더 엄격한 기준"""
+        area = w * h
+        aspect_ratio = w / h if h > 0 else 0
+        
+        # 기본 크기 및 비율 검사
+        area_valid = self.min_box_area <= area <= self.max_box_area
+        ratio_valid = self.aspect_ratio_range[0] <= aspect_ratio <= self.aspect_ratio_range[1]
+        
+        # 너무 얇거나 너무 긴 형태 제외
+        min_dimension = min(w, h)
+        max_dimension = max(w, h)
+        
+        # 최소 크기 제한 (너무 작은 선 형태 제외)
+        dimension_valid = min_dimension >= 5 and max_dimension >= 10
+        
+        # 극단적인 비율 제외 (매우 얇은 선 형태)
+        extreme_ratio_valid = aspect_ratio >= 0.2 and aspect_ratio <= 5.0
+        
+        return area_valid and ratio_valid and dimension_valid and extreme_ratio_valid
+    
+    def is_rectangular_shape(self, contour, tolerance=0.1):
+        """컨투어가 직사각형 모양인지 확인"""
+        # 컨투어를 직사각형으로 근사화
+        epsilon = tolerance * cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, epsilon, True)
+        
+        # 4개의 꼭짓점을 가져야 함
+        if len(approx) != 4:
+            return False
+        
+        # 컨투어 면적과 바운딩 박스 면적 비교
+        contour_area = cv2.contourArea(contour)
+        x, y, w, h = cv2.boundingRect(contour)
+        rect_area = w * h
+        
+        if rect_area == 0:
+            return False
+        
+        # 면적 비율이 일정 이상이어야 함 (직사각형에 가까워야 함)
+        area_ratio = contour_area / rect_area
+        return area_ratio > 0.7  # 70% 이상 채워져야 함
+    
+    def detect_boxes_by_color(self, img):
+        """개선된 HSV 색상 기반 박스 감지"""
+        boxes = []
+        
+        # HSV 변환
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        
+        # 세밀한 색상 범위 가져오기
+        color_ranges = self.get_precise_color_ranges()
+        
+        processed_regions = np.zeros(hsv.shape[:2], dtype=np.uint8)
+        
+        for color_name, (lower, upper) in color_ranges.items():
+            # 색상 마스크 생성
+            mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
+            
+            # 이미 처리된 영역과 겹치는 부분 제거 (색상 겹침 방지)
+            mask = cv2.bitwise_and(mask, cv2.bitwise_not(processed_regions))
+            
+            if np.sum(mask) < self.min_box_area:  # 너무 작은 영역은 건너뛰기
+                continue
+            
+            # 노이즈 제거 - 더 정교한 모폴로지 연산
+            kernel_small = np.ones((3, 3), np.uint8)
+            kernel_medium = np.ones((5, 5), np.uint8)
+            
+            # 작은 노이즈 제거
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_small)
+            # 구멍 메우기
+            mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel_medium)
+            # 다시 작은 노이즈 제거
+            mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel_small)
+            
+            # 컨투어 찾기
+            contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            for contour in contours:
+                # 컨투어가 직사각형 모양인지 확인
+                if not self.is_rectangular_shape(contour):
+                    continue
+                
+                x, y, w, h = cv2.boundingRect(contour)
+                
+                # 유효성 검사
+                if self.is_valid_box(x, y, w, h):
+                    # 컨투어 면적과 바운딩 박스 면적 비교 (형태 검증)
+                    contour_area = cv2.contourArea(contour)
+                    rect_area = w * h
+                    fill_ratio = contour_area / rect_area if rect_area > 0 else 0
+                    
+                    # 채움 비율이 적절해야 함 (너무 복잡한 형태 제외)
+                    if 0.6 <= fill_ratio <= 0.98:
+                        boxes.append((x, y, w, h))
+                        # 처리된 영역 마킹 (겹침 방지)
+                        cv2.rectangle(processed_regions, (x, y), (x+w, y+h), 255, -1)
+        
+        return boxes
+    
+    def detect_boxes_by_edges(self, img):
+        """개선된 엣지 기반 박스 감지"""
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        
+        # 적응적 임계값을 사용한 엣지 감지
+        edges = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, 
+                                     cv2.THRESH_BINARY, 11, 2)
+        
+        # Canny 엣지와 결합
+        canny_edges = cv2.Canny(gray, 50, 150, apertureSize=3)
+        edges = cv2.bitwise_or(edges, canny_edges)
+        
+        # 모폴로지 연산으로 엣지 연결
+        kernel = np.ones((3, 3), np.uint8)
+        edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+        
+        # 컨투어 찾기
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        boxes = []
+        for contour in contours:
+            # 컨투어가 직사각형 모양인지 확인
+            if not self.is_rectangular_shape(contour, tolerance=0.05):
+                continue
+            
+            x, y, w, h = cv2.boundingRect(contour)
+            
+            # 유효성 검사
+            if self.is_valid_box(x, y, w, h):
+                boxes.append((x, y, w, h))
+        
+        return boxes
+    
+    def remove_duplicate_boxes(self, boxes, overlap_threshold=0.3):
+        """중복되는 박스 제거 - 더 엄격한 기준"""
+        if not boxes:
+            return []
+        
+        # 면적 기준으로 정렬 (큰 것부터)
+        boxes = sorted(boxes, key=lambda b: b[2] * b[3], reverse=True)
+        
+        filtered_boxes = []
+        for box in boxes:
+            x1, y1, w1, h1 = box
+            is_duplicate = False
+            
+            for existing_box in filtered_boxes:
+                x2, y2, w2, h2 = existing_box
+                
+                # 겹치는 영역 계산
+                overlap_x = max(0, min(x1 + w1, x2 + w2) - max(x1, x2))
+                overlap_y = max(0, min(y1 + h1, y2 + h2) - max(y1, y2))
+                overlap_area = overlap_x * overlap_y
+                
+                area1 = w1 * h1
+                area2 = w2 * h2
+                
+                # 작은 박스 기준으로 겹침 비율 계산
+                smaller_area = min(area1, area2)
+                if smaller_area > 0:
+                    overlap_ratio = overlap_area / smaller_area
+                    if overlap_ratio > overlap_threshold:
+                        is_duplicate = True
+                        break
+            
+            if not is_duplicate:
+                filtered_boxes.append(box)
+        
+        return filtered_boxes
+    
+    def detect_boxes(self, img_path):
+        """메인 박스 감지 함수"""
+        # 이미지 로드
+        img = cv2.imread(img_path)
+        if img is None:
+            raise ValueError(f"이미지를 로드할 수 없습니다: {img_path}")
+        
+        print(f"이미지 크기: {img.shape[1]}x{img.shape[0]}")
+        
+        # 이미지 전처리
+        processed_img = self.preprocess_image(img)
+        
+        # 색상 기반 박스 감지 (주요 방법)
+        print("개선된 HSV 색상 기반 박스 감지 중...")
+        color_boxes = self.detect_boxes_by_color(processed_img)
+        print(f"색상 방법으로 {len(color_boxes)}개 박스 감지")
+        
+        # 엣지 기반 박스 감지 (보조 방법)
+        print("개선된 엣지 기반 박스 감지 중...")
+        edge_boxes = self.detect_boxes_by_edges(processed_img)
+        print(f"엣지 방법으로 {len(edge_boxes)}개 박스 감지")
+        
+        # 모든 박스 합치기
+        all_boxes = color_boxes + edge_boxes
+        print(f"총 {len(all_boxes)}개 박스 감지 (중복 포함)")
+        
+        # 중복 제거
+        final_boxes = self.remove_duplicate_boxes(all_boxes)
+        print(f"중복 제거 후 {len(final_boxes)}개 박스")
+        
+        return img, final_boxes
+    
+    def draw_boxes_and_save(self, img, boxes, output_path):
+        """박스를 그리고 결과 이미지 저장"""
+        result_img = img.copy()
+        
+        # 다양한 색상 정의 (BGR)
+        colors = [
+            (0, 255, 0),    # 초록
+            (255, 0, 0),    # 파랑
+            (0, 0, 255),    # 빨강
+            (255, 255, 0),  # 청록
+            (255, 0, 255),  # 마젠타
+            (0, 255, 255),  # 노랑
+            (128, 0, 128),  # 보라
+            (255, 165, 0),  # 주황
+            (0, 128, 255),  # 하늘색
+            (255, 192, 203), # 분홍
+            (128, 128, 0),  # 올리브
+            (0, 128, 128),  # 청록
+        ]
+        
+        for i, (x, y, w, h) in enumerate(boxes):
+            color = colors[i % len(colors)]
+            
+            # 박스 그리기 (굵기 2)
+            cv2.rectangle(result_img, (x, y), (x + w, y + h), color, 2)
+            
+            # 박스 번호 표시
+            cv2.putText(result_img, f'{i+1}', (x, y-5), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+            
+            # 박스 크기 표시 (선택사항)
+            area = w * h
+            cv2.putText(result_img, f'{area}px', (x, y+h+15), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.4, color, 1)
+        
+        # 결과 이미지 저장
+        cv2.imwrite(output_path, result_img)
+        return result_img
+
+def main():
+    parser = argparse.ArgumentParser(description='이미지에서 박스를 감지하고 좌표를 출력합니다.')
+    parser.add_argument('image_path', help='입력 이미지 경로')
+    parser.add_argument('--output', '-o', default='output.jpg', help='출력 이미지 파일명 (기본값: output.jpg)')
+    parser.add_argument('--min-area', type=int, default=100, help='최소 박스 크기 (기본값: 100)')
+    parser.add_argument('--max-area', type=int, default=50000, help='최대 박스 크기 (기본값: 50000)')
+    parser.add_argument('--min-ratio', type=float, default=0.2, help='최소 가로세로 비율 (기본값: 0.2)')
+    parser.add_argument('--max-ratio', type=float, default=5.0, help='최대 가로세로 비율 (기본값: 5.0)')
+    
+    args = parser.parse_args()
+    
+    # 입력 파일 존재 확인
+    if not os.path.exists(args.image_path):
+        print(f"오류: 파일을 찾을 수 없습니다 - {args.image_path}")
+        sys.exit(1)
+    
+    try:
+        # 박스 감지기 초기화 (커스텀 파라미터 적용)
+        detector = BoxDetector(
+            min_box_area=args.min_area,
+            max_box_area=args.max_area,
+            aspect_ratio_range=(args.min_ratio, args.max_ratio)
+        )
+        
+        print(f"\n이미지 분석 시작: {args.image_path}")
+        print("=" * 50)
+        
+        # 박스 감지
+        img, boxes = detector.detect_boxes(args.image_path)
+        
+        if not boxes:
+            print("감지된 박스가 없습니다.")
+            print("파라미터를 조정해보세요:")
+            print("  --min-area 값을 줄이거나")
+            print("  --max-area 값을 늘려보세요")
+            return
+        
+        # 결과 출력
+        print("\n" + "=" * 50)
+        print(f"최종 감지된 박스 개수: {len(boxes)}")
+        print("-" * 50)
+        print("박스 좌표 및 정보:")
+        print("형식: 박스번호: (x, y, w, h) - 면적: area")
+        
+        for i, (x, y, w, h) in enumerate(boxes, 1):
+            area = w * h
+            print(f"박스 {i:2d}: ({x:4d}, {y:4d}, {w:4d}, {h:4d}) - 면적: {area:6d}")
+        
+        # 박스 그리고 결과 이미지 저장
+        result_img = detector.draw_boxes_and_save(img, boxes, args.output)
+        print(f"\n결과 이미지가 저장되었습니다: {args.output}")
+        
+        # 이미지 표시 (GUI 환경에서만)
+        try:
+            cv2.imshow('Original Image', img)
+            cv2.imshow('Detected Boxes', result_img)
+            print("\n'q' 키를 눌러 종료하세요.")
+            cv2.waitKey(0)
+            cv2.destroyAllWindows()
+        except cv2.error:
+            print("GUI 환경이 아니어서 이미지를 화면에 표시할 수 없습니다.")
+            print(f"결과 이미지를 확인하세요: {args.output}")
+        
+    except Exception as e:
+        print(f"오류 발생: {e}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
+
+```
+```python
+#!/usr/bin/env python3
+"""
 이미지에서 컬러 박스를 감지하고 좌표를 출력하는 프로그램 (Version 5)
 Usage: python box_detector.py <image_path>
 """
