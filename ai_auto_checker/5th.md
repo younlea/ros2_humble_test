@@ -1,5 +1,165 @@
 우분투에서 동작하는 Python 프로그램을 만들어드리겠습니다. 이 프로그램은 이미지에서 색깔 있는 박스들을 감지하고, 해당 위치에 새로운 박스를 그려주며 좌표를 출력합니다.​​​​​​​​​​​​​​​​
 
+```python
+#!/usr/bin/env python3
+# 파일: outline_box_color_detector.py
+
+import cv2
+import numpy as np
+import argparse
+import sys
+import os
+
+class OutlineColorBoxDetector:
+    def __init__(self, min_box_area=100, max_box_area=50000, aspect_ratio_range=(0.1, 10), fill_ratio_threshold=0.5):
+        self.min_box_area = min_box_area
+        self.max_box_area = max_box_area
+        self.aspect_ratio_range = aspect_ratio_range
+        self.fill_ratio_threshold = fill_ratio_threshold
+        self.color_table = self.get_basic_color_table()
+
+    def preprocess_image(self, img):
+        blurred = cv2.GaussianBlur(img, (5, 5), 0)
+        return blurred
+
+    def is_valid_box(self, x, y, w, h):
+        area = w * h
+        aspect_ratio = w / h if h > 0 else 0
+        return (self.min_box_area <= area <= self.max_box_area 
+                and self.aspect_ratio_range[0] <= aspect_ratio <= self.aspect_ratio_range[1])
+
+    def is_rectangular_shape(self, contour, tolerance=0.02):
+        epsilon = tolerance * cv2.arcLength(contour, True)
+        approx = cv2.approxPolyDP(contour, epsilon, True)
+        return len(approx) == 4
+
+    def detect_outline_boxes(self, img):
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(gray, 50, 150)
+        kernel = np.ones((3, 3), np.uint8)
+        edges = cv2.dilate(edges, kernel, iterations=1)
+        edges = cv2.erode(edges, kernel, iterations=1)
+
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        boxes = []
+
+        for contour in contours:
+            if not self.is_rectangular_shape(contour):
+                continue
+
+            x, y, w, h = cv2.boundingRect(contour)
+            if not self.is_valid_box(x, y, w, h):
+                continue
+
+            contour_area = cv2.contourArea(contour)
+            rect_area = w * h
+            fill_ratio = contour_area / rect_area if rect_area > 0 else 0
+
+            if fill_ratio <= self.fill_ratio_threshold:
+                boxes.append((x, y, w, h))
+
+        return boxes
+
+    def get_basic_color_table(self):
+        return {
+            "red": [(0, 50, 50), (10, 255, 255)],
+            "orange": [(10, 50, 50), (25, 255, 255)],
+            "yellow": [(25, 50, 50), (35, 255, 255)],
+            "green": [(35, 50, 50), (85, 255, 255)],
+            "cyan": [(85, 50, 50), (100, 255, 255)],
+            "blue": [(100, 50, 50), (130, 255, 255)],
+            "purple": [(130, 50, 50), (160, 255, 255)],
+            "pink": [(160, 50, 50), (180, 255, 255)]
+        }
+
+    def classify_box_color(self, img, box):
+        x, y, w, h = box
+
+        roi_margin = int(min(w, h) * 0.1)
+        roi = img[y+roi_margin:y+h-roi_margin, x+roi_margin:x+w-roi_margin]
+        if roi.size == 0:
+            return "unknown"
+
+        hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        mean_hsv = np.mean(hsv_roi.reshape(-1, 3), axis=0)
+
+        for color_name, (lower, upper) in self.color_table.items():
+            lower_np = np.array(lower)
+            upper_np = np.array(upper)
+            if np.all(lower_np <= mean_hsv) and np.all(mean_hsv <= upper_np):
+                return color_name
+        return "unknown"
+
+    def draw_boxes_and_save(self, img, boxes, colors, output_path):
+        result_img = img.copy()
+        color_map = {
+            "red": (0, 0, 255),
+            "orange": (0, 165, 255),
+            "yellow": (0, 255, 255),
+            "green": (0, 255, 0),
+            "cyan": (255, 255, 0),
+            "blue": (255, 0, 0),
+            "purple": (255, 0, 255),
+            "pink": (255, 105, 180),
+            "unknown": (128, 128, 128)
+        }
+
+        for i, (box, color_name) in enumerate(zip(boxes, colors)):
+            x, y, w, h = box
+            color = color_map.get(color_name, (128, 128, 128))
+            cv2.rectangle(result_img, (x, y), (x + w, y + h), color, 2)
+            cv2.putText(result_img, f'{i+1}:{color_name}', (x, y-5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, color, 2)
+
+        cv2.imwrite(output_path, result_img)
+        return result_img
+
+def main():
+    parser = argparse.ArgumentParser(description='색깔별 외곽선 박스 감지기')
+    parser.add_argument('image_path', help='입력 이미지 경로')
+    parser.add_argument('--output', '-o', default='output.jpg', help='출력 이미지 경로')
+    parser.add_argument('--min-area', type=int, default=100)
+    parser.add_argument('--max-area', type=int, default=50000)
+    parser.add_argument('--min-ratio', type=float, default=0.2)
+    parser.add_argument('--max-ratio', type=float, default=5.0)
+    parser.add_argument('--fill-ratio', type=float, default=0.5)
+
+    args = parser.parse_args()
+
+    if not os.path.exists(args.image_path):
+        print(f"파일 없음: {args.image_path}")
+        sys.exit(1)
+
+    img = cv2.imread(args.image_path)
+    if img is None:
+        print(f"이미지 로드 실패: {args.image_path}")
+        sys.exit(1)
+
+    detector = OutlineColorBoxDetector(
+        min_box_area=args.min_area,
+        max_box_area=args.max_area,
+        aspect_ratio_range=(args.min_ratio, args.max_ratio),
+        fill_ratio_threshold=args.fill_ratio
+    )
+
+    processed_img = detector.preprocess_image(img)
+    boxes = detector.detect_outline_boxes(processed_img)
+
+    if not boxes:
+        print("박스 없음")
+        sys.exit(0)
+
+    colors = [detector.classify_box_color(img, box) for box in boxes]
+
+    for i, (box, color_name) in enumerate(zip(boxes, colors), 1):
+        x, y, w, h = box
+        print(f"박스 {i}: ({x}, {y}, {w}, {h}) 색상: {color_name}")
+
+    detector.draw_boxes_and_save(img, boxes, colors, args.output)
+    print(f"결과 저장됨: {args.output}")
+
+if __name__ == "__main__":
+    main()
+```
 
 ```python
 #!/usr/bin/env python3
