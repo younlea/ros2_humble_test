@@ -4,6 +4,7 @@
 	•	필요한 라이브러리: opencv-python, Pillow, tkinter pip install opencv-python Pillow
 	•	
 코드
+```python
 import os
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -190,6 +191,9 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = ImageSelectorApp(root)
     root.mainloop()
+
+```
+
 동작 설명
 	1	폴더 선택: “Select Folder” 버튼을 눌러 [102].jpg 파일이 있는 폴더를 선택합니다. 첫 번째 이미지가 캔버스에 표시됩니다.
 	2	ROI 선택: 첫 이미지에서 마우스로 두 개의 ROI를 드래그하여 선택합니다. 첫 번째 ROI는 파란색, 두 번째 ROI는 초록색으로 표시됩니다.
