@@ -1,5 +1,5 @@
 
-{python test}
+{}(code )
 
 아래는 요청하신 대로 Python과 Tkinter를 사용해 Ubuntu에서 동작하는 GUI 애플리케이션의 예제 코드입니다. 이 프로그램은 특정 폴더에서 [102].jpg 파일을 읽고, 사용자가 ROI(Region of Interest)를 선택한 후, 이미지를 순차적으로 보여주며 체크된 파일을 지정된 폴더에 저장합니다. OpenCV와 PIL을 사용해 이미지 처리를 수행합니다.
 요구 사항
