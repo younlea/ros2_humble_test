@@ -23,7 +23,7 @@ class ImageSelectorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Image Selector App")
-        self.root.geometry("1200x800")  # 더 큰 창으로 조정
+        self.root.geometry("1200x800")
 
         # 변수 초기화
         self.folder_path = ""
@@ -37,7 +37,7 @@ class ImageSelectorApp:
         self.temp_roi = [0, 0, 0, 0]
         self.roi_count = 0
         self.selected_roi = None
-        self.check_vars = []  # 각 이미지의 체크박스 상태
+        self.check_vars = []
 
         # GUI 요소
         self.label_folder = tk.Label(root, text="No folder selected")
@@ -45,9 +45,6 @@ class ImageSelectorApp:
 
         self.btn_select_folder = tk.Button(root, text="Select Folder", command=self.select_folder)
         self.btn_select_folder.pack(pady=5)
-
-        self.btn_select_save_folder = tk.Button(root, text="Select Save Folder", command=self.select_save_folder)
-        self.btn_select_save_folder.pack(pady=5)
 
         # ROI 선택 프레임
         self.roi_frame = tk.Frame(root)
@@ -116,8 +113,11 @@ class ImageSelectorApp:
     def select_folder(self):
         self.folder_path = filedialog.askdirectory(title="Select Image Folder")
         if self.folder_path:
+            # detected_folder 생성
+            self.save_folder = os.path.join(self.folder_path, "detected_folder")
+            os.makedirs(self.save_folder, exist_ok=True)
             self.label_folder.config(text=f"Selected Folder: {self.folder_path}")
-            self.image_files = sorted(glob.glob(os.path.join(self.folder_path, "annotated_image__*_[102].jpg")))
+            self.image_files = sorted(glob.glob(os.path.join(self.folder_path, "annotated_image__*_[102*.jpg")))
             if self.image_files:
                 self.current_page = 0
                 self.roi1 = None
@@ -136,18 +136,13 @@ class ImageSelectorApp:
                 self.label_roi1.config(text="ROI1: Not selected")
                 self.label_roi2.config(text="ROI2: Not selected")
                 self.label_status.config(text="")
-                self.grid_frame.pack_forget()  # 그리드 숨기기
-                self.canvas.pack(pady=10)  # 첫 이미지 캔버스 보이기
+                self.grid_frame.pack_forget()
+                self.canvas.pack(pady=10)
             else:
-                messagebox.showwarning("Warning", "No annotated_image__*_[102].jpg files found!")
+                messagebox.showwarning("Warning", "No annotated_image__*_[102*.jpg files found!")
                 self.btn_start.config(state=tk.DISABLED)
                 self.btn_roi1.config(state=tk.DISABLED)
                 self.btn_roi2.config(state=tk.DISABLED)
-
-    def select_save_folder(self):
-        self.save_folder = filedialog.askdirectory(title="Select Save Folder")
-        if self.save_folder:
-            messagebox.showinfo("Info", f"Save folder selected: {self.save_folder}")
 
     def set_roi_mode(self, mode):
         self.selected_roi = mode
@@ -174,11 +169,11 @@ class ImageSelectorApp:
             if self.image_label:
                 self.canvas.delete(self.image_label)
             self.image_label = self.canvas.create_image(0, 0, anchor=tk.NW, image=photo)
-            self.image_label_photo = photo  # 참조 유지
+            self.image_label_photo = photo
         else:
             canvas.delete("all")
             canvas.create_image(0, 0, anchor=tk.NW, image=photo)
-            canvas.image = photo  # 참조 유지
+            canvas.image = photo
 
     def start_roi(self, event):
         if self.roi_count < 2 and self.current_page == 0 and self.selected_roi:
@@ -217,7 +212,168 @@ class ImageSelectorApp:
                 self.btn_roi1.config(state=tk.DISABLED)
                 self.btn_roi2.config(state=tk.NORMAL)
                 self.selected_roi = None
-            elif self.selected
+            elif self.selected_roi == "ROI2":
+                self.roi2 = [x1, y1, x2, y2]
+                self.roi_count = 2
+                self.canvas.delete("roi2")
+                self.canvas.create_rectangle(x1, y1, x2, y2, outline="green", width=2, tags="roi2")
+                self.label_roi2.config(text=f"ROI2: ({x1}, {y1}, {x2}, {y2})")
+                self.btn_roi2.config(state=tk.DISABLED)
+                self.selected_roi = None
+            self.canvas.delete("roi")
+
+    def start_processing(self):
+        if not self.roi1 or not self.roi2:
+            messagebox.showwarning("Warning", "Please select both ROIs!")
+            return
+        self.btn_start.config(state=tk.DISABLED)
+        self.btn_roi1.config(state=tk.DISABLED)
+        self.btn_roi2.config(state=tk.DISABLED)
+        self.btn_next.config(state=tk.NORMAL)
+        self.btn_prev.config(state=tk.DISABLED if self.current_page == 0 else tk.NORMAL)
+        self.canvas.pack_forget()
+        self.grid_frame.pack(pady=10)
+        self.show_roi_images()
+
+    def show_roi_images(self):
+        start_idx = self.current_page * self.images_per_page
+        end_idx = min(start_idx + self.images_per_page, len(self.image_files))
+        self.check_vars = [tk.BooleanVar() for _ in range(self.images_per_page)]
+        for i, var in enumerate(self.check_vars):
+            self.grid_checkboxes[i].config(variable=var)
+            self.grid_canvases[i].delete("all")
+            self.grid_labels[i].config(text="")
+            self.grid_checkboxes[i].config(state=tk.NORMAL)
+
+        self.grid_images = []
+        for i, idx in enumerate(range(start_idx, end_idx)):
+            img_path = self.image_files[idx]
+            img = cv2.imread(img_path)
+            if img is None:
+                print(f"Failed to load image: {img_path}")
+                self.grid_labels[i].config(text="Error: Failed to load")
+                continue
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            h, w = img.shape[:2]
+
+            # ROI1 좌표
+            x1, y1, x2, y2 = [int(x/self.scale) for x in self.roi1]
+            x1, x2 = max(0, min(x1, x2)), min(w, max(x1, x2))
+            y1, y2 = max(0, min(y1, y2)), min(h, max(y1, y2))
+            if x2 <= x1 or y2 <= y1:
+                print(f"Invalid ROI1 for {img_path}: x1={x1}, x2={x2}, y1={y1}, y2={y2}")
+                self.grid_labels[i].config(text="Error: Invalid ROI1")
+                continue
+            roi1_img = img[y1:y2, x1:x2]
+
+            # ROI2 좌표
+            x1, y1, x2, y2 = [int(x/self.scale) for x in self.roi2]
+            x1, x2 = max(0, min(x1, x2)), min(w, max(x1, x2))
+            y1, y2 = max(0, min(y1, y2)), min(h, max(y1, y2))
+            if x2 <= x1 or y2 <= y1:
+                print(f"Invalid ROI2 for {img_path}: x1={x1}, x2={x2}, y1={y1}, y2={y2}")
+                self.grid_labels[i].config(text="Error: Invalid ROI2")
+                continue
+            roi2_img = img[y1:y2, x1:x2]
+
+            # 높이 맞추기
+            h1, w1 = roi1_img.shape[:2]
+            h2, w2 = roi2_img.shape[:2]
+            max_h = max(h1, h2)
+            if h1 < max_h:
+                padding = max_h - h1
+                roi1_img = cv2.copyMakeBorder(
+                    roi1_img, 0, padding, 0, 0, cv2.BORDER_CONSTANT, value=(0, 0, 0)
+                )
+            elif h2 < max_h:
+                padding = max_h - h2
+                roi2_img = cv2.copyMakeBorder(
+                    roi2_img, 0, padding, 0, 0, cv2.BORDER_CONSTANT, value=(0, 0, 0)
+                )
+
+            # 이미지 연결
+            try:
+                combined_img = cv2.hconcat([roi1_img, roi2_img])
+                combined_img = cv2.resize(combined_img, (160, 60))
+                self.display_image(self.grid_canvases[i], combined_img)
+                self.grid_labels[i].config(text=os.path.basename(img_path))
+                self.grid_images.append(img_path)
+            except cv2.error as e:
+                print(f"OpenCV Error for {img_path}: {e}")
+                self.grid_labels[i].config(text="Error: Failed to combine")
+
+        # 빈 셀 비활성화
+        for i in range(len(self.grid_images), self.images_per_page):
+            self.grid_canvases[i].delete("all")
+            self.grid_labels[i].config(text="")
+            self.grid_checkboxes[i].config(state=tk.DISABLED)
+
+        # 상태 업데이트
+        self.label_status.config(text=f"{start_idx + 1}/{len(self.image_files)}")
+        self.btn_prev.config(state=tk.DISABLED if self.current_page == 0 else tk.NORMAL)
+        self.btn_next.config(state=tk.DISABLED if end_idx >= len(self.image_files) else tk.NORMAL)
+        self.label_filename.config(text="")
+
+    def prev_image(self):
+        start_idx = self.current_page * self.images_per_page
+        for i, img_path in enumerate(self.grid_images):
+            if self.check_vars[i].get():
+                # annotated_image__<timestamp>_[102*.jpg -> image__<timestamp>_[102*.jpg
+                base_name = os.path.basename(img_path).replace("annotated_image__", "image__")
+                src_path = os.path.join(self.folder_path, base_name)
+                if os.path.exists(src_path):
+                    shutil.copy(src_path, self.save_folder)
+                else:
+                    messagebox.showwarning("Warning", f"File {base_name} not found!")
+        if self.current_page > 0:
+            self.current_page -= 1
+            self.show_roi_images()
+
+    def next_image(self):
+        start_idx = self.current_page * self.images_per_page
+        for i, img_path in enumerate(self.grid_images):
+            if self.check_vars[i].get():
+                base_name = os.path.basename(img_path).replace("annotated_image__", "image__")
+                src_path = os.path.join(self.folder_path, base_name)
+                if os.path.exists(src_path):
+                    shutil.copy(src_path, self.save_folder)
+                else:
+                    messagebox.showwarning("Warning", f"File {base_name} not found!")
+        self.current_page += 1
+        if self.current_page * self.images_per_page < len(self.image_files):
+            self.show_roi_images()
+        else:
+            messagebox.showinfo("Info", "All images processed!")
+            self.btn_next.config(state=tk.DISABLED)
+            self.btn_prev.config(state=tk.DISABLED if self.current_page == 0 else tk.NORMAL)
+            self.current_page = 0
+            self.roi1 = None
+            self.roi2 = None
+            self.roi_count = 0
+            self.image_files = []
+            self.check_vars = []
+            self.grid_images = []
+            for canvas in self.grid_canvases:
+                canvas.delete("all")
+            for label in self.grid_labels:
+                label.config(text="")
+            for cb in self.grid_checkboxes:
+                cb.config(state=tk.DISABLED)
+            self.label_filename.config(text="")
+            self.label_status.config(text="")
+            self.grid_frame.pack_forget()
+            self.canvas.pack(pady=10)
+            self.canvas.config(width=640, height=480)
+            self.btn_start.config(state=tk.DISABLED)
+            self.btn_roi1.config(state=tk.DISABLED)
+            self.btn_roi2.config(state=tk.DISABLED)
+            self.label_roi1.config(text="ROI1: Not selected")
+            self.label_roi2.config(text="ROI2: Not selected")
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ImageSelectorApp(root)
+    root.mainloop()
 ```
 
 ```python
