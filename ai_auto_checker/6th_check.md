@@ -9,6 +9,216 @@
 	•	
 ```
 코드
+```python
+import os
+import tkinter as tk
+from tkinter import filedialog, messagebox
+import cv2
+from PIL import Image, ImageTk
+import shutil
+import glob
+import math
+
+class ImageSelectorApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Image Selector App")
+        self.root.geometry("1200x800")  # 더 큰 창으로 조정
+
+        # 변수 초기화
+        self.folder_path = ""
+        self.save_folder = ""
+        self.image_files = []
+        self.current_page = 0
+        self.images_per_page = 12
+        self.roi1 = None
+        self.roi2 = None
+        self.is_selecting_roi = False
+        self.temp_roi = [0, 0, 0, 0]
+        self.roi_count = 0
+        self.selected_roi = None
+        self.check_vars = []  # 각 이미지의 체크박스 상태
+
+        # GUI 요소
+        self.label_folder = tk.Label(root, text="No folder selected")
+        self.label_folder.pack(pady=5)
+
+        self.btn_select_folder = tk.Button(root, text="Select Folder", command=self.select_folder)
+        self.btn_select_folder.pack(pady=5)
+
+        self.btn_select_save_folder = tk.Button(root, text="Select Save Folder", command=self.select_save_folder)
+        self.btn_select_save_folder.pack(pady=5)
+
+        # ROI 선택 프레임
+        self.roi_frame = tk.Frame(root)
+        self.roi_frame.pack(pady=5)
+
+        self.btn_roi1 = tk.Button(self.roi_frame, text="Select ROI1", command=lambda: self.set_roi_mode("ROI1"), state=tk.DISABLED)
+        self.btn_roi1.pack(side=tk.LEFT, padx=5)
+        self.label_roi1 = tk.Label(self.roi_frame, text="ROI1: Not selected")
+        self.label_roi1.pack(side=tk.LEFT, padx=5)
+
+        self.btn_roi2 = tk.Button(self.roi_frame, text="Select ROI2", command=lambda: self.set_roi_mode("ROI2"), state=tk.DISABLED)
+        self.btn_roi2.pack(side=tk.LEFT, padx=5)
+        self.label_roi2 = tk.Label(self.roi_frame, text="ROI2: Not selected")
+        self.label_roi2.pack(side=tk.LEFT, padx=5)
+
+        # 첫 이미지용 캔버스
+        self.canvas = tk.Canvas(root, width=640, height=480, bg="gray")
+        self.canvas.pack(pady=10)
+        self.canvas.bind("<Button-1>", self.start_roi)
+        self.canvas.bind("<B1-Motion>", self.update_roi)
+        self.canvas.bind("<ButtonRelease-1>", self.end_roi)
+
+        # 4x3 그리드용 프레임
+        self.grid_frame = tk.Frame(root)
+        self.grid_frame.pack(pady=10)
+        self.grid_canvases = []
+        self.grid_labels = []
+        self.grid_checkboxes = []
+        for i in range(3):
+            for j in range(4):
+                frame = tk.Frame(self.grid_frame)
+                frame.grid(row=i, column=j, padx=5, pady=5)
+                canvas = tk.Canvas(frame, width=160, height=60, bg="gray")
+                canvas.pack()
+                label = tk.Label(frame, text="", wraplength=160)
+                label.pack()
+                check_var = tk.BooleanVar()
+                checkbox = tk.Checkbutton(frame, text="Select Image", variable=check_var)
+                checkbox.pack()
+                self.grid_canvases.append(canvas)
+                self.grid_labels.append(label)
+                self.grid_checkboxes.append(check_var)
+
+        self.label_filename = tk.Label(root, text="")
+        self.label_filename.pack(pady=5)
+
+        self.btn_start = tk.Button(root, text="Start", command=self.start_processing, state=tk.DISABLED)
+        self.btn_start.pack(pady=5)
+
+        # 버튼 및 상태 프레임
+        self.button_frame = tk.Frame(root)
+        self.button_frame.pack(pady=5)
+
+        self.btn_prev = tk.Button(self.button_frame, text="Previous", command=self.prev_image, state=tk.DISABLED)
+        self.btn_prev.pack(side=tk.LEFT, padx=5)
+
+        self.label_status = tk.Label(self.button_frame, text="")
+        self.label_status.pack(side=tk.LEFT, padx=5)
+
+        self.btn_next = tk.Button(self.button_frame, text="Next", command=self.next_image, state=tk.DISABLED)
+        self.btn_next.pack(side=tk.LEFT, padx=5)
+
+        self.image_label = None
+        self.grid_images = []
+
+    def select_folder(self):
+        self.folder_path = filedialog.askdirectory(title="Select Image Folder")
+        if self.folder_path:
+            self.label_folder.config(text=f"Selected Folder: {self.folder_path}")
+            self.image_files = sorted(glob.glob(os.path.join(self.folder_path, "annotated_image__*_[102].jpg")))
+            if self.image_files:
+                self.current_page = 0
+                self.roi1 = None
+                self.roi2 = None
+                self.roi_count = 0
+                self.selected_roi = None
+                self.check_vars = [tk.BooleanVar() for _ in range(self.images_per_page)]
+                for var, cb in zip(self.check_vars, self.grid_checkboxes):
+                    cb.config(variable=var)
+                self.show_image(self.image_files[0])
+                self.btn_start.config(state=tk.NORMAL)
+                self.btn_roi1.config(state=tk.NORMAL)
+                self.btn_roi2.config(state=tk.DISABLED)
+                self.btn_prev.config(state=tk.DISABLED)
+                self.btn_next.config(state=tk.DISABLED)
+                self.label_roi1.config(text="ROI1: Not selected")
+                self.label_roi2.config(text="ROI2: Not selected")
+                self.label_status.config(text="")
+                self.grid_frame.pack_forget()  # 그리드 숨기기
+                self.canvas.pack(pady=10)  # 첫 이미지 캔버스 보이기
+            else:
+                messagebox.showwarning("Warning", "No annotated_image__*_[102].jpg files found!")
+                self.btn_start.config(state=tk.DISABLED)
+                self.btn_roi1.config(state=tk.DISABLED)
+                self.btn_roi2.config(state=tk.DISABLED)
+
+    def select_save_folder(self):
+        self.save_folder = filedialog.askdirectory(title="Select Save Folder")
+        if self.save_folder:
+            messagebox.showinfo("Info", f"Save folder selected: {self.save_folder}")
+
+    def set_roi_mode(self, mode):
+        self.selected_roi = mode
+        self.btn_roi1.config(relief=tk.SUNKEN if mode == "ROI1" else tk.RAISED)
+        self.btn_roi2.config(relief=tk.SUNKEN if mode == "ROI2" else tk.RAISED)
+
+    def show_image(self, image_path):
+        img = cv2.imread(image_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        h, w = img.shape[:2]
+        scale = min(640/w, 480/h)
+        img = cv2.resize(img, (int(w*scale), int(h*scale)))
+
+        self.current_image = img
+        self.scale = scale
+        self.canvas.config(width=640, height=480)
+        self.display_image(self.canvas, img)
+        self.label_filename.config(text=f"Image: {os.path.basename(image_path)}")
+
+    def display_image(self, canvas, img):
+        img_pil = Image.fromarray(img)
+        photo = ImageTk.PhotoImage(img_pil)
+        if canvas == self.canvas:
+            if self.image_label:
+                self.canvas.delete(self.image_label)
+            self.image_label = self.canvas.create_image(0, 0, anchor=tk.NW, image=photo)
+            self.image_label_photo = photo  # 참조 유지
+        else:
+            canvas.delete("all")
+            canvas.create_image(0, 0, anchor=tk.NW, image=photo)
+            canvas.image = photo  # 참조 유지
+
+    def start_roi(self, event):
+        if self.roi_count < 2 and self.current_page == 0 and self.selected_roi:
+            self.is_selecting_roi = True
+            self.temp_roi[0] = event.x
+            self.temp_roi[1] = event.y
+            self.temp_roi[2] = event.x
+            self.temp_roi[3] = event.y
+
+    def update_roi(self, event):
+        if self.is_selecting_roi:
+            self.temp_roi[2] = event.x
+            self.temp_roi[3] = event.y
+            self.canvas.delete("roi")
+            self.canvas.create_rectangle(
+                self.temp_roi[0], self.temp_roi[1], self.temp_roi[2], self.temp_roi[3],
+                outline="red", width=2, tags="roi"
+            )
+
+    def end_roi(self, event):
+        if self.is_selecting_roi:
+            self.is_selecting_roi = False
+            x1, y1, x2, y2 = self.temp_roi
+            x1, x2 = min(x1, x2), max(x1, x2)
+            y1, y2 = min(y1, y2), max(y1, y2)
+            if x2 - x1 < 10 or y2 - y1 < 10:
+                print("ROI too small, ignoring.")
+                self.canvas.delete("roi")
+                return
+            if self.selected_roi == "ROI1":
+                self.roi1 = [x1, y1, x2, y2]
+                self.roi_count = 1
+                self.canvas.delete("roi1")
+                self.canvas.create_rectangle(x1, y1, x2, y2, outline="blue", width=2, tags="roi1")
+                self.label_roi1.config(text=f"ROI1: ({x1}, {y1}, {x2}, {y2})")
+                self.btn_roi1.config(state=tk.DISABLED)
+                self.btn_roi2.config(state=tk.NORMAL)
+                self.selected_roi = None
+            elif self.selected
+```
 
 ```python
 import os
