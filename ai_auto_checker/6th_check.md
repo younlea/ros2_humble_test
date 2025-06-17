@@ -9,6 +9,74 @@
 	•	
 ```
 코드
+
+
+
+```python
+def show_roi_images(self):
+    img_path = self.image_files[self.current_index]
+    img = cv2.imread(img_path)
+    if img is None:
+        print(f"Failed to load image: {img_path}")
+        self.label_filename.config(text="Error: Failed to load image")
+        return
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    h, w = img.shape[:2]
+
+    # ROI1 좌표
+    x1, y1, x2, y2 = [int(x/self.scale) for x in self.roi1]
+    x1, x2 = max(0, min(x1, x2)), min(w, max(x1, x2))
+    y1, y2 = max(0, min(y1, y2)), min(h, max(y1, y2))
+    if x2 <= x1 or y2 <= y1:
+        print(f"Invalid ROI1: x1={x1}, x2={x2}, y1={y1}, y2={y2}")
+        self.display_image(img)
+        self.label_filename.config(text="Error: Invalid ROI1")
+        return
+    roi1_img = img[y1:y2, x1:x2]
+
+    # ROI2 좌표
+    x1, y1, x2, y2 = [int(x/self.scale) for x in self.roi2]
+    x1, x2 = max(0, min(x1, x2)), min(w, max(x1, x2))
+    y1, y2 = max(0, min(y1, y2)), min(h, max(y1, y2))
+    if x2 <= x1 or y2 <= y1:
+        print(f"Invalid ROI2: x1={x1}, x2={x2}, y1={y1}, y2={y2}")
+        self.display_image(img)
+        self.label_filename.config(text="Error: Invalid ROI2")
+        return
+    roi2_img = img[y1:y2, x1:x2]
+
+    # 높이 맞추기 (패딩 추가)
+    h1, w1 = roi1_img.shape[:2]
+    h2, w2 = roi2_img.shape[:2]
+    max_h = max(h1, h2)
+
+    if h1 < max_h:
+        # ROI1에 패딩 추가
+        padding = max_h - h1
+        roi1_img = cv2.copyMakeBorder(
+            roi1_img, 0, padding, 0, 0, cv2.BORDER_CONSTANT, value=(0, 0, 0)
+        )
+    elif h2 < max_h:
+        # ROI2에 패딩 추가
+        padding = max_h - h2
+        roi2_img = cv2.copyMakeBorder(
+            roi2_img, 0, padding, 0, 0, cv2.BORDER_CONSTANT, value=(0, 0, 0)
+        )
+
+    # 이미지 연결
+    try:
+        combined_img = cv2.hconcat([roi1_img, roi2_img])
+        combined_img = cv2.resize(combined_img, (640, 240))
+        self.display_image(combined_img)
+        self.label_filename.config(text=os.path.basename(img_path))
+        self.check_var.set(False)
+    except cv2.error as e:
+        print(f"OpenCV Error: {e}")
+        self.display_image(img)
+        self.label_filename.config(text="Error: Failed to combine images")
+```
+ 
+
 ```python
 import os
 import tkinter as tk
